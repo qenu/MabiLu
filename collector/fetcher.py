@@ -19,6 +19,8 @@ from const import (
     API_URL,
     CLASS_HASH_TO_NAME,
     DELAY_SEC,
+    RETRIES,
+    RETRY_WAIT_SEC,
     PROFILE_DIR,
     RANKING_TYPE,
     SITE_URL,
@@ -42,8 +44,9 @@ class StopRun(Exception):
 class FetchResult(NamedTuple):
     data: dict      # {member: record, or None when not found}
     stopped: str    # reason, or "" when the run finished
-    errors: int     # network errors and unreadable rows (those members are None)
-    requests: int   # calls made
+    errors: int     # unreadable rows (those members are None)
+    requests: int   # members' calls made (not counting retries)
+    retries: int = 0  # extra tries made after a failed call
 
 
 def build_url(nickname):
@@ -125,10 +128,35 @@ def order_by_rank(users, ranks):
     return sorted(users, key=lambda u: (ranks.get(u) is None, ranks.get(u) or 0))
 
 
-def fetch_users(fetch_page, users, delay=DELAY_SEC, sleep=time.sleep, log=print):
-    """Fetch every member. fetch_page(url) -> (status, text). Easy to test with a fake."""
+def fetch_users(fetch_page, users, delay=DELAY_SEC, sleep=time.sleep, log=print,
+                 retries=RETRIES, retry_wait=RETRY_WAIT_SEC):
+    """Fetch every member. fetch_page(url) -> (status, text). Easy to test with a fake.
+
+    A failed call is tried again up to `retries` times, with growing waits. The same
+    request is sent again, nothing else changes. If it still fails, the run stops.
+    """
     wanted, data = set(users), {}
-    errors = requests = 0
+    errors = requests = retried = 0
+
+    def get_page(url):
+        nonlocal retried
+        reason = ""
+        for attempt in range(retries + 1):
+            if attempt:
+                wait = retry_wait[min(attempt - 1, len(retry_wait) - 1)]
+                log(f"retry {attempt}/{retries} in {wait}s: {reason}")
+                retried += 1
+                sleep(wait)
+            status, text = fetch_page(url)
+            if status == 0:
+                reason = f"network error: {text}"
+                continue
+            try:
+                return parse_page(status, text)
+            except StopRun as e:
+                reason = str(e)
+        raise StopRun(f"gave up after {retries} retries: {reason}")
+
     stopped = ""
     try:
         for user in users:
@@ -136,14 +164,8 @@ def fetch_users(fetch_page, users, delay=DELAY_SEC, sleep=time.sleep, log=print)
                 continue
             if requests:
                 sleep(delay)
-            status, text = fetch_page(build_url(user))
+            page = get_page(build_url(user))
             requests += 1
-            if status == 0:
-                errors += 1
-                data[user] = None
-                log(f"{user:<8} network error: {text}")
-                continue
-            page = parse_page(status, text)
             for name, row in page.items():
                 if name in wanted and name not in data:
                     try:
@@ -161,7 +183,7 @@ def fetch_users(fetch_page, users, delay=DELAY_SEC, sleep=time.sleep, log=print)
                 log(f"{user:<8} not found")
     except StopRun as e:
         stopped = str(e)
-    return FetchResult({u: data[u] for u in users if u in data}, stopped, errors, requests)
+    return FetchResult({u: data[u] for u in users if u in data}, stopped, errors, requests, retried)
 
 
 def make_driver(browser="chrome"):

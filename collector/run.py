@@ -6,6 +6,7 @@
     uv run collector/run.py --no-git         # write the files only
     uv run collector/run.py --dry-run        # fetch and print, write nothing
     uv run collector/run.py --rebuild-only   # rebuild docs/daily.json from the raw log, no fetch
+    uv run collector/run.py --test-webhook   # send one test message
 
 A run that was stopped (HTTP 403/429 or a bad response) writes nothing.
 """
@@ -16,6 +17,7 @@ import sys
 import snapshot
 from const import DAILY_FILE, ROOT, SNAP_DIR
 from gitpush import commit_and_push
+from notify import send
 
 
 def publish(message, args):
@@ -24,6 +26,7 @@ def publish(message, args):
     try:
         print(commit_and_push(message, [SNAP_DIR, DAILY_FILE], push=not args.no_push))
     except RuntimeError as e:
+        send(f"mabilookup: git failed. The files are saved, but not published.\n{e}"[:1500])
         sys.exit(f"{e}\nThe files are saved. Fix git, then commit them by hand.")
 
 
@@ -34,7 +37,12 @@ def main():
     p.add_argument("--no-git", action="store_true", help="write files but do not commit")
     p.add_argument("--dry-run", action="store_true", help="fetch and print, write nothing")
     p.add_argument("--rebuild-only", action="store_true", help="rebuild daily.json, no fetch")
+    p.add_argument("--test-webhook", action="store_true", help="send one test message to the webhook and exit")
     args = p.parse_args()
+
+    if args.test_webhook:
+        ok = send("mabilookup: webhook test. If you can read this, stop alerts will reach you.")
+        sys.exit(0 if ok else "webhook is off (no URL) or the post failed")
 
     if args.rebuild_only:
         data = snapshot.write_rollup()
@@ -45,16 +53,24 @@ def main():
     from fetcher import fetch_all  # imports selenium only when we really fetch
 
     taken_at = snapshot.now()
-    result = fetch_all(args.browser)
+    try:
+        result = fetch_all(args.browser)
+    except Exception as e:                       # e.g. Chrome did not start
+        if not args.dry_run:
+            send(f"mabilookup: run crashed at {taken_at.isoformat()}. Nothing was written.\n{type(e).__name__}: {e}")
+        raise
     if result.stopped:
         print(f"STOP: {result.stopped}\nNothing was written.", file=sys.stderr)
+        if not args.dry_run:
+            send(f"mabilookup: run stopped at {taken_at.isoformat()}. Nothing was written.\n{result.stopped}")
         sys.exit(1)
 
     records = [rec for rec in result.data.values() if rec]
     missing = [name for name, rec in result.data.items() if rec is None]
     snap = snapshot.build_snapshot(records, taken_at)
     print(f"{len(result.data)} members in {result.requests} calls: "
-          f"{len(records)} found, {len(missing)} not found, {result.errors} errors")
+          f"{len(records)} found, {len(missing)} not found, {result.errors} errors"
+          + (f", {result.retries} retries" if result.retries else ""))
     if missing:
         print("not found:", ", ".join(missing))
     if args.dry_run:

@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -9,6 +10,29 @@ SITE_URL = "https://tw.nexon.com/mabinogimobile/"
 API_URL = "https://tw.nexon.com/mabinogimobile/api/content/game/role-ranking/"
 WORLD_ID = "2"
 DELAY_SEC = 3
+
+# A request that fails (network error, HTTP 403/429/5xx, a page that is not the API's JSON) is
+# tried again up to RETRIES times, with these waits in seconds. After that the run stops.
+RETRIES = 3
+RETRY_WAIT_SEC = (15, 45, 120)
+
+
+def _read_webhook():
+    """The webhook URL is a secret: anyone who has it can post to your channel.
+    This repo is public, so do NOT write it in this file. Use one of these:
+      - the environment variable MABILOOKUP_WEBHOOK
+      - a file named webhook.url in the project root (git-ignored), holding only the URL
+    Empty means off."""
+    url = os.environ.get("MABILOOKUP_WEBHOOK", "").strip()
+    if not url:
+        try:
+            url = (ROOT / "webhook.url").read_text(encoding="utf-8").strip()
+        except OSError:
+            url = ""
+    return url
+
+
+WEBHOOK_URL = _read_webhook()     # a Discord or Slack incoming webhook; notified when a run stops
 
 # Folder and file names use this time zone. taken_at keeps the UTC offset.
 TIMEZONE = "Asia/Taipei"

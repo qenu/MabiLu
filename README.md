@@ -27,8 +27,19 @@ every guild member on it. It fetches members in order of their last known total 
 members share one page. The first run has no ranks yet and may use one call per member.
 Calls are 3 seconds apart.
 
-**Stops:** on HTTP 403/429 or an unexpected response, the run stops at once. It writes nothing,
-does not retry, and does not try to get around a block.
+**Retries and stops:** a failed call (network error, HTTP 403/429/5xx, or a page that is not the
+API's JSON) is sent again up to 3 times, after 15, 45 and 120 seconds (`RETRIES`, `RETRY_WAIT_SEC`
+in `const.py`). It is the same request, and nothing is changed to get around a block.
+If the call still fails, the run stops. It writes nothing and sends the webhook alert.
+
+**Webhook alert (optional):** a Discord or Slack incoming webhook gets a message when a run stops,
+crashes (for example Chrome does not start), or when git fails. The URL is a secret, so it is not in
+`const.py` (this repo is public). Set it in one of two ways:
+
+    export MABILOOKUP_WEBHOOK='https://discord.com/api/webhooks/...'
+    # or put only the URL in a file named webhook.url in the project root (git-ignored)
+
+    uv run collector/run.py --test-webhook    # send one test message
 
 ## 2. Site (`docs/`)
 Static page. It reads `docs/daily.json` and draws the tables and charts. No build step.
