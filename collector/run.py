@@ -17,17 +17,23 @@ import sys
 import snapshot
 from const import DAILY_FILE, ROOT, SNAP_DIR
 from gitpush import commit_and_push
+import notify
 from notify import send
+from schedule import next_run
 
 
 def publish(message, args):
+    """Commit and push. Return what happened ("pushed", "committed", "nothing to commit", "not committed")."""
     if args.no_git:
-        return
+        return "not committed"
     try:
-        print(commit_and_push(message, [SNAP_DIR, DAILY_FILE], push=not args.no_push))
+        out = commit_and_push(message, [SNAP_DIR, DAILY_FILE], push=not args.no_push)
     except RuntimeError as e:
-        send(f"mabilookup: git failed. The files are saved, but not published.\n{e}"[:1500])
+        now = snapshot.now()
+        send(notify.failure(now, "git failed", str(e), next_run(now), written=True))
         sys.exit(f"{e}\nThe files are saved. Fix git, then commit them by hand.")
+    print(out)
+    return out
 
 
 def main():
@@ -41,7 +47,9 @@ def main():
     args = p.parse_args()
 
     if args.test_webhook:
-        ok = send("mabilookup: webhook test. If you can read this, stop alerts will reach you.")
+        now = snapshot.now()
+        ok = send(notify.summary(now, 30, [], 12, 0, 0, "pushed", next_run(now)))
+        ok = send(notify.failure(now, "TEST (not a real failure)", "This is only a test of the alert ping.", next_run(now))) and ok
         sys.exit(0 if ok else "webhook is off (no URL) or the post failed")
 
     if args.rebuild_only:
@@ -57,12 +65,12 @@ def main():
         result = fetch_all(args.browser)
     except Exception as e:                       # e.g. Chrome did not start
         if not args.dry_run:
-            send(f"mabilookup: run crashed at {taken_at.isoformat()}. Nothing was written.\n{type(e).__name__}: {e}")
+            send(notify.failure(taken_at, "crashed", f"{type(e).__name__}: {e}", next_run(taken_at)))
         raise
     if result.stopped:
         print(f"STOP: {result.stopped}\nNothing was written.", file=sys.stderr)
         if not args.dry_run:
-            send(f"mabilookup: run stopped at {taken_at.isoformat()}. Nothing was written.\n{result.stopped}")
+            send(notify.failure(taken_at, "stopped", result.stopped, next_run(taken_at)))
         sys.exit(1)
 
     records = [rec for rec in result.data.values() if rec]
@@ -80,7 +88,9 @@ def main():
     path = snapshot.append_snapshot(snap)
     data = snapshot.write_rollup()
     print(f"appended to {path.relative_to(ROOT)} · rollup has {len(data['days'])} days")
-    publish(f"snapshot {snap['taken_at']}", args)
+    published = publish(f"snapshot {snap['taken_at']}", args)
+    send(notify.summary(taken_at, len(records), missing, result.requests, result.retries,
+                        result.errors, published, next_run(snapshot.now())))
 
 
 if __name__ == "__main__":

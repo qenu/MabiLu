@@ -32,14 +32,31 @@ API's JSON) is sent again up to 3 times, after 15, 45 and 120 seconds (`RETRIES`
 in `const.py`). It is the same request, and nothing is changed to get around a block.
 If the call still fails, the run stops. It writes nothing and sends the webhook alert.
 
-**Webhook alert (optional):** a Discord or Slack incoming webhook gets a message when a run stops,
-crashes (for example Chrome does not start), or when git fails. The URL is a secret, so it is not in
-`const.py` (this repo is public). Set it in one of two ways:
+**Discord webhook (optional):** after every run the collector posts one message to a Discord webhook.
+- Pass: `✅ OK`, with the counts (found, not found, calls, retries) and `next run <t:…:R>`.
+  Not-found members or unreadable rows change it to `⚠️ done with warnings`. It does not ping.
+- Fail (stopped, crashed, or git failed): `❌`, the reason, and `next run`. It pings `ALERT_MENTION`
+  (`@everyone` by default; `@here` or `""` in `const.py`).
+- Times are Discord time tags, so you see them in your own time zone and they keep counting.
+- `--dry-run` never posts.
+
+The URL is a secret, so it is not in `const.py` (this repo is public). Set it in one of two ways:
 
     export MABILOOKUP_WEBHOOK='https://discord.com/api/webhooks/...'
     # or put only the URL in a file named webhook.url in the project root (git-ignored)
 
-    uv run collector/run.py --test-webhook    # send one test message
+    uv run collector/run.py --test-webhook    # posts one pass message and one fail alert
+
+**Schedule (macOS launchd):** the run times are `RUN_TIMES` in `const.py`
+(02:00, 08:00, 14:00, 23:00). launchd uses the Mac's own time zone, so the Mac must be set to Taipei time.
+
+    uv run collector/launchd.py               # writes the job file and prints the commands
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.mabilookup.collector.plist
+    launchctl kickstart -k gui/$(id -u)/com.mabilookup.collector    # run it now, to test
+
+The log is `logs/run.log` (git-ignored). On the Mac, turn off automatic sleep, stay logged in
+(Chrome needs a desktop session), and use `webhook.url` (the job does not see your shell's `export`).
+To change the times: edit `RUN_TIMES`, run `launchd.py` again, then `launchctl bootout` and `bootstrap`.
 
 ## 2. Site (`docs/`)
 Static page. It reads `docs/daily.json` and draws the tables and charts. No build step.

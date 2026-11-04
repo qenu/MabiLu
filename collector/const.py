@@ -32,7 +32,12 @@ def _read_webhook():
     return url
 
 
-WEBHOOK_URL = _read_webhook()     # a Discord or Slack incoming webhook; notified when a run stops
+WEBHOOK_URL = _read_webhook()     # a Discord incoming webhook. Every run posts a summary or an alert.
+ALERT_MENTION = "@everyone"       # pinged on a failed run. "@here" pings only members who are online. "" = no ping.
+
+# Run times (24-hour, HH:MM). collector/launchd.py builds the schedule from these,
+# and the "next run" line in the Discord message uses them.
+RUN_TIMES = ("02:00", "08:00", "14:00", "23:00")
 
 # Folder and file names use this time zone. taken_at keeps the UTC offset.
 TIMEZONE = "Asia/Taipei"
