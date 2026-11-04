@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>花朝之約 · Mabinogi Lookup</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <h1>花朝之約 · Mabinogi Lookup</h1>
+  <div class="sub" id="sub">載入中…</div>
+
+  <div class="seg" id="metrics" role="group" aria-label="指標"></div>
+
+  <div class="stats" id="stats"></div>
+
+  <h2>綜合總覽
+    <input id="q" type="search" placeholder="搜尋成員或職業" autocomplete="off" aria-label="搜尋成員">
+  </h2>
+  <div class="card"><table id="roster"></table></div>
+
+  <h2><span id="hChart">綜合成長曲線</span>
+    <span class="seg small" id="modes" role="group" aria-label="曲線模式"></span>
+  </h2>
+  <div class="card pad"><div id="chart"></div></div>
+
+  <h2><span id="hBars">綜合漲幅排行</span>
+    <span class="seg small" id="wins" role="group" aria-label="期間"></span>
+  </h2>
+  <div class="card pad"><div id="bars"></div></div>
+  <footer>
+    <p><h3>花朝之約 · Mabinogi Mobile Lookup</h3></p>
+    <p id="footUpdated"></p>
+    <p>資料來源：瑪奇 Mobile 台灣官方。非官方工具，與 Nexon || Devcat 無關。</p>
+    <p>Made by community with ❤️ · No rights reserved</p>
+  </footer>
+</main>
+<script src="app.js"></script>
+</body>
+</html>

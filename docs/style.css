@@ -1,0 +1,58 @@
+:root{
+  --bg:#fafaf7;--fg:#1d1d1b;--mut:#6b6b64;--line:#e4e2da;--card:#fff;--acc:#2f6f5e;
+  --up1:#cfe8d8;--up2:#9fd2b2;--up3:#5fb583;--up4:#2f8f5b;--flat:#e6e5de;--down:#f0c27a;--neg:#c0861f;
+  --c0:#2f6f5e;--c1:#c2573b;--c2:#3b6fc2;--c3:#b8902e;--c4:#8a4fb0;--c5:#2e9aa8;--c6:#c24b8c;--c7:#6b7a2e;--c8:#7a6b5e;--c9:#d17a2a;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#161715;--fg:#ecebe5;--mut:#9a9a90;--line:#2c2d2a;--card:#1d1e1b;--acc:#6fc2a9;
+  --up1:#27402f;--up2:#2f6a48;--up3:#3f9363;--up4:#56b883;--flat:#2d2e29;--down:#8a6a2c;--neg:#e0a640;
+  --c0:#6fc2a9;--c1:#e5836a;--c2:#7ba3e8;--c3:#e0bd5c;--c4:#c196e0;--c5:#5fc4d2;--c6:#e382b6;--c7:#a3b45c;--c8:#b5a596;--c9:#eda55c;
+}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Noto Sans TC",sans-serif}
+main{max-width:980px;margin:0 auto;padding:24px 16px 64px}
+h1{font-size:22px;margin:0}
+h2{font-size:15px;margin:32px 0 10px;letter-spacing:.02em;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.sub:empty{display:none}
+.sub{color:var(--mut);font-size:13px;margin-top:2px}
+.seg{display:inline-flex;gap:6px;flex-wrap:wrap;margin:20px 0 0}
+.seg.small{margin:0}
+.seg button{font:inherit;font-size:14px;padding:6px 14px;border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:8px;cursor:pointer}
+.seg.small button{font-size:12px;padding:3px 10px}
+.seg button[aria-pressed=true]{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:16px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.stat .k{font-size:12px;color:var(--mut)}
+.stat .v{font-size:24px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.3}
+.stat .s{font-size:12px;color:var(--mut)}
+h2 input[type=search]{font:inherit;font-size:13px;font-weight:400;width:200px;padding:4px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--fg)}
+h2 input[type=search]:focus{outline:none;border-color:var(--acc)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow-x:auto}
+.card.pad{padding:12px}
+table{border-collapse:collapse;width:100%;min-width:720px}
+th,td{padding:9px 12px;text-align:right;white-space:nowrap}
+th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){text-align:left}
+thead th{font-size:12px;color:var(--mut);font-weight:600;cursor:pointer;user-select:none;border-bottom:1px solid var(--line)}
+tbody tr+tr td{border-top:1px solid var(--line)}
+td.num{font-variant-numeric:tabular-nums}
+.sub.demo{color:var(--neg);font-weight:600}
+.up{color:var(--up4)}.down{color:var(--neg)}.mut{color:var(--mut)}
+svg.spark{display:block;margin-left:auto}
+svg.big{display:block;width:100%;height:auto;min-width:560px}
+svg text{fill:var(--mut);font-size:11px;font-family:inherit}
+svg .grid{stroke:var(--line);stroke-width:1}
+svg .ln{fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+svg .lead{fill:none;stroke-width:1;opacity:.45;stroke-dasharray:2 3}
+svg circle{stroke:var(--card);stroke-width:1.5}
+.l0{stroke:var(--c0)}.l1{stroke:var(--c1)}.l2{stroke:var(--c2)}.l3{stroke:var(--c3)}.l4{stroke:var(--c4)}
+.l5{stroke:var(--c5)}.l6{stroke:var(--c6)}.l7{stroke:var(--c7)}.l8{stroke:var(--c8)}.l9{stroke:var(--c9)}
+.f0{fill:var(--c0)}.f1{fill:var(--c1)}.f2{fill:var(--c2)}.f3{fill:var(--c3)}.f4{fill:var(--c4)}
+.f5{fill:var(--c5)}.f6{fill:var(--c6)}.f7{fill:var(--c7)}.f8{fill:var(--c8)}.f9{fill:var(--c9)}
+.bar{display:grid;grid-template-columns:96px 1fr 120px;gap:10px;align-items:center;padding:4px 0;font-size:14px}
+.bar .track{height:14px;background:var(--flat);border-radius:4px;position:relative;overflow:hidden}
+.bar .fill{position:absolute;top:0;bottom:0;border-radius:4px;background:var(--up4)}
+.bar .fill.neg{background:var(--down)}
+.bar .v{text-align:right;font-variant-numeric:tabular-nums}
+.empty{padding:20px;color:var(--mut)}
+footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);color:var(--mut);font-size:12px}
+footer p{margin:2px 0}
