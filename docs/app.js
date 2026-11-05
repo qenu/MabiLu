@@ -17,6 +17,12 @@ const WINS = [
   {id: "14d", label: "14 日", days: 14},
   {id: "all", label: "全期間"},
 ];
+const RANGES = [   // how much history the growth chart shows, counted back from the newest snapshot
+  {id: "3d", label: "3 日", days: 3},
+  {id: "14d", label: "14 日", days: 14},
+  {id: "30d", label: "30 日", days: 30},
+  {id: "all", label: "全部"},
+];
 const MODES = [
   {id: "value", label: "數值"},
   {id: "pct", label: "成長 %"},
@@ -25,7 +31,7 @@ const MODES = [
 const DAY = 86400000;
 const TOL = 6 * 3600e3;   // a window starts at the snapshot nearest to (newest - window), if one is within 6 hours of that time
 
-const state = {metric: TYPES[0].id, sort: {key: "value", dir: -1}, win: "1d", mode: "value", q: ""};
+const state = {metric: TYPES[0].id, sort: {key: "value", dir: -1}, win: "1d", range: "3d", mode: "value", q: ""};
 let snap = {times: [], members: {}}, members = [], snapCount = 0, isDemo = false, updatedAt = "";
 const DEMO = new URLSearchParams(location.search).has("demo"); // ?demo loads demo/series.json
 
@@ -272,8 +278,10 @@ function cumMove(ser) {
 const textW = (s) => [...s].reduce((w, ch) => w + (ch.charCodeAt(0) > 255 ? 11.5 : 6.4), 0);
 function renderChart() {
   hlId = null; hideTip();
+  const days = RANGES.find((r) => r.id === state.range).days;
+  const start = days ? snap.times[snap.times.length - 1] - days * DAY : -Infinity;   // the chart starts here
   const lines = members.map((m, i) => {
-    const ser = snapSeries(m), base = ser.find((p) => p.c);
+    const ser = snapSeries(m).filter((p) => p.t >= start), base = ser.find((p) => p.c);   // growth % and movement start at the first point of the range
     const ys = state.mode === "move" ? cumMove(ser) : ser.map((p) => {
       if (!p.c) return null;
       if (state.mode === "value") return p.c.value;
@@ -290,7 +298,7 @@ function renderChart() {
   let lo = Math.min(...all), hi = Math.max(...all);
   if (lo === hi) { lo -= 1; hi += 1; }
   const padY = (hi - lo) * 0.06; if (state.mode !== "move") lo -= padY; hi += padY;   // movement starts at 0 and cannot go below it
-  const t0 = snap.times[0], t1 = snap.times[snap.times.length - 1];
+  const t0 = snap.times.find((t) => t >= start), t1 = snap.times[snap.times.length - 1];
   const x = (t) => t1 === t0 ? (L + W - R) / 2 : L + (t - t0) / (t1 - t0) * (W - L - R);
   const y = (v) => T + (1 - (v - lo) / (hi - lo)) * (H - T - B);
   const yf = (v) => state.mode === "pct" ? v.toFixed(1) + "%" : fmt(v);
@@ -307,6 +315,7 @@ function renderChart() {
     svg += '<text x="' + x(t).toFixed(1) + '" y="' + (H - 6) + '" text-anchor="' + anchor + '">' + tickText(t) + "</text>";
   });
   for (const l of lines) {
+    if (!l.ys.some((v) => v != null)) continue;   // no value in this range: nothing to draw
     const c = l.i % 10;
     const runs = [];                       // a gap (no data) splits the line into runs
     l.ser.forEach((p, j) => {
@@ -358,6 +367,7 @@ function renderBars() {
 function render() {
   seg($("metrics"), TYPES, state.metric, (v) => { state.metric = v; render(); });
   seg($("modes"), MODES, state.mode, (v) => { state.mode = v; render(); });
+  seg($("ranges"), RANGES, state.range, (v) => { state.range = v; render(); });
   seg($("wins"), WINS, state.win, (v) => { state.win = v; render(); });
   $("hChart").textContent = label(state.metric) + (state.mode === "move" ? "累計位移" : "成長曲線");   // the two titles follow the selected metric
   $("hBars").textContent = label(state.metric) + "漲幅排行";
