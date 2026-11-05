@@ -15,7 +15,7 @@ import json
 import sys
 
 import snapshot
-from const import DAILY_FILE, ROOT, SNAP_DIR
+from const import DAILY_FILE, ROOT, SERIES_FILE, SNAP_DIR
 from gitpush import commit_and_push
 import notify
 from notify import send
@@ -27,7 +27,7 @@ def publish(message, args):
     if args.no_git:
         return "not committed"
     try:
-        out = commit_and_push(message, [SNAP_DIR, DAILY_FILE], push=not args.no_push)
+        out = commit_and_push(message, [SNAP_DIR, DAILY_FILE, SERIES_FILE], push=not args.no_push)
     except RuntimeError as e:
         now = snapshot.now()
         send(notify.failure(now, "git failed", str(e), next_run(now), written=True))
@@ -54,7 +54,9 @@ def main():
 
     if args.rebuild_only:
         data = snapshot.write_rollup()
-        print(f"rebuilt {DAILY_FILE.relative_to(ROOT)}: {len(data['days'])} days, {data['snapshot_count']} snapshots")
+        snapshot.write_series()
+        print(f"rebuilt {DAILY_FILE.relative_to(ROOT)} and {SERIES_FILE.relative_to(ROOT)}: "
+              f"{len(data['days'])} days, {data['snapshot_count']} snapshots")
         publish("rebuild daily rollup", args)
         return
 
@@ -87,6 +89,7 @@ def main():
 
     path = snapshot.append_snapshot(snap)
     data = snapshot.write_rollup()
+    snapshot.write_series()
     print(f"appended to {path.relative_to(ROOT)} · rollup has {len(data['days'])} days")
     published = publish(f"snapshot {snap['taken_at']}", args)
     send(notify.summary(taken_at, len(records), missing, result.requests, result.retries,

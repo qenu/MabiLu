@@ -3,7 +3,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SNAP_DIR = ROOT / "docs" / "snapshots"   # raw log: one file per day
-DAILY_FILE = ROOT / "docs" / "daily.json"  # rollup the site reads
+DAILY_FILE = ROOT / "docs" / "daily.json"  # rollup the site reads (highest value per day)
+SERIES_FILE = ROOT / "docs" / "series.json"  # every snapshot, compact; the chart loads it on request
 PROFILE_DIR = ROOT / ".chrome-profile"
 
 SITE_URL = "https://tw.nexon.com/mabinogimobile/"

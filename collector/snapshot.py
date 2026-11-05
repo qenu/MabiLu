@@ -9,6 +9,8 @@ A snapshot's `data` is a list with one record per member that was found:
 powers). A member who was not found has no record. The total is not stored: it is
 the sum of the 3 powers, which equals the game's own total (each power rounded down).
 
+Series: docs/series.json has EVERY snapshot (no daily-max rule), in columns, for the per-snapshot chart.
+
 Rollup rule: for each day, member and metric we keep the HIGHEST value of that day.
 Each metric is taken on its own, so the day's total can come from another snapshot
 than the day's combat power. The rank belongs to the snapshot of the highest total.
@@ -21,7 +23,7 @@ import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from const import DAILY_FILE, METRICS, POWERS, RANKING_TYPE, SNAP_DIR, TIMEZONE, WORLD_ID
+from const import DAILY_FILE, METRICS, POWERS, RANKING_TYPE, SERIES_FILE, SNAP_DIR, TIMEZONE, WORLD_ID
 
 DAY_FILE = re.compile(r"^\d{4}-\d{2}-\d{2}\.json$")
 RECORD_KEYS = {"char_name", "class", "rank", *POWERS}
@@ -137,5 +139,36 @@ def build_rollup(snap_dir=SNAP_DIR):
 
 def write_rollup(snap_dir=SNAP_DIR, out=DAILY_FILE, data=None):
     data = data or build_rollup(snap_dir)
+    _write_atomic(out, json.dumps(data, ensure_ascii=False, separators=(",", ":")) + "\n")
+    return data
+
+
+def load_snapshots(snap_dir=SNAP_DIR):
+    files = sorted(p for p in snap_dir.glob("*.json") if DAY_FILE.match(p.name))
+    return [s for p in files for s in read_day(p)]
+
+
+def series_from(snaps):
+    """Every snapshot in columns. times are Unix seconds. A member missing from a snapshot has null there.
+    The total is not stored (the site adds the 3 powers). `class` is the member's newest class."""
+    snaps = sorted(snaps, key=lambda s: datetime.fromisoformat(s["taken_at"]))
+    members = {}
+    for i, snap in enumerate(snaps):
+        for rec in snap["data"]:
+            m = members.setdefault(rec["char_name"], {"class": rec["class"], **{k: [None] * len(snaps) for k in POWERS}})
+            m["class"] = rec["class"]
+            for k in POWERS:
+                m[k][i] = rec[k]
+    return {
+        "version": 1,
+        "snapshot_count": len(snaps),
+        "updated_at": snaps[-1]["taken_at"] if snaps else None,
+        "times": [int(datetime.fromisoformat(s["taken_at"]).timestamp()) for s in snaps],
+        "members": members,
+    }
+
+
+def write_series(snap_dir=SNAP_DIR, out=SERIES_FILE, snaps=None):
+    data = series_from(load_snapshots(snap_dir) if snaps is None else snaps)
     _write_atomic(out, json.dumps(data, ensure_ascii=False, separators=(",", ":")) + "\n")
     return data

@@ -67,7 +67,8 @@ Publish: GitHub Settings > Pages > branch `main`, folder `/docs`.
 
 ## Data
     docs/snapshots/<YYYY-MM-DD>.json   raw log: a list, each run appends one snapshot (Asia/Taipei day)
-    docs/daily.json                    rollup the site reads; rebuilt on every run
+    docs/daily.json                    rollup the site reads (highest value per day); rebuilt on every run
+    docs/series.json                   every snapshot in columns, for the per-snapshot chart; rebuilt on every run
 
 A snapshot has one record per member that was found:
 `char_name`, `class`, `rank`, `combatpower`, `livingpower`, `attractiveness`.
@@ -76,6 +77,15 @@ A snapshot has one record per member that was found:
 - A member who was not found has no record.
 
 Rollup rule: for each day, member and metric, keep the HIGHEST value of that day.
+The table, the stats and the 1日/3日/14日/全期間 changes use this rule.
+The growth chart has a toggle: 每日最高 (daily max) or 每筆快照 (every snapshot). The second one loads
+`series.json` only when you click it. It shows the dips that the daily-max rule hides (a gear swap, for example).
+`series.json` has the 3 powers and the newest class per member. The site adds the powers to get the total.
+It grows by about 1 KB per snapshot (about 1.5 MB a year at 4 runs a day).
+
+The chart lines are curved with a monotone curve (`curvePath` in `docs/app.js`). Between two points
+the line never goes above the higher point or below the lower one, so it shows no peak or dip that is not in the data.
+A line with only 2 points stays straight.
 
 ## Pending (`pending/`)
 Parked for now, and not published.
