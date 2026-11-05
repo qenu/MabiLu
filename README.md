@@ -82,6 +82,11 @@ The site adds the 3 powers to get the total. The file grows by about 1.2 KB per 
 start is the snapshot nearest to (newest time - window), if one is within 6 hours of that time. If there is none, the cell
 shows `–`. 全期間 starts at the member's first snapshot. A member who is not in the newest snapshot shows `–`.
 
+**Chart buttons:** 數值 (the value), 成長 % (growth since the first snapshot) and 位移 (cumulative movement).
+位移 starts each member at 0 and adds the size of every change between snapshots, whether it went up or down.
+A flat line means the member did nothing, and a steep line means the member is active. The end of the line is the member's
+total movement. It is the same "up" plus "down" as the table hover, added over the whole period.
+
 Hover details:
 - **A change cell in the table:** the number split into what went up and what went down, snapshot by snapshot.
   For example, `+2` can be `+8,467 -8,465`: a big swing that ends flat, so the member is active.

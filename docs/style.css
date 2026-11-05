@@ -48,7 +48,7 @@ svg circle{stroke:var(--card);stroke-width:1.5}
 .l5{stroke:var(--c5)}.l6{stroke:var(--c6)}.l7{stroke:var(--c7)}.l8{stroke:var(--c8)}.l9{stroke:var(--c9)}
 .f0{fill:var(--c0)}.f1{fill:var(--c1)}.f2{fill:var(--c2)}.f3{fill:var(--c3)}.f4{fill:var(--c4)}
 .f5{fill:var(--c5)}.f6{fill:var(--c6)}.f7{fill:var(--c7)}.f8{fill:var(--c8)}.f9{fill:var(--c9)}
-.bar{display:grid;grid-template-columns:96px 1fr 120px;gap:10px;align-items:center;padding:4px 0;font-size:14px}
+.bar{display:grid;grid-template-columns:140px 1fr 120px;gap:10px;align-items:center;padding:4px 0;font-size:14px}
 .bar .track{height:14px;background:var(--flat);border-radius:4px;position:relative;overflow:hidden}
 .bar .fill{position:absolute;top:0;bottom:0;border-radius:4px;background:var(--up4)}
 .bar .fill.neg{background:var(--down)}
@@ -63,6 +63,7 @@ footer p{margin:2px 0}
 td[data-w]{cursor:help}
 td[data-w]:hover{background:var(--flat)}
 svg .hit{fill:transparent;cursor:help}
+svg text{pointer-events:none}   /* so the hover area under a name gets the pointer, not the letters */
 svg.big.hl .ln{opacity:.12}
 svg.big.hl .ln.on{opacity:1;stroke-width:3}
 svg.big.hl .lead{opacity:.08}

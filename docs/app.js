@@ -17,7 +17,11 @@ const WINS = [
   {id: "14d", label: "14 日", days: 14},
   {id: "all", label: "全期間"},
 ];
-const MODES = [{id: "value", label: "數值"}, {id: "pct", label: "成長 %"}];
+const MODES = [
+  {id: "value", label: "數值"},
+  {id: "pct", label: "成長 %"},
+  {id: "move", label: "位移", title: "累計位移：每筆快照之間變化量的絕對值，逐次加總，不分漲跌"},
+];
 const DAY = 86400000;
 const TOL = 6 * 3600e3;   // a window starts at the snapshot nearest to (newest - window), if one is within 6 hours of that time
 
@@ -159,7 +163,7 @@ function highlight(i) {            // dim every line except the one under the po
 
 /* ---------- controls ---------- */
 function seg(el, items, current, onPick) {
-  el.innerHTML = items.map((i) => '<button data-v="' + i.id + '" aria-pressed="' + (i.id === current) + '">' + i.label + "</button>").join("");
+  el.innerHTML = items.map((i) => '<button data-v="' + i.id + '"' + (i.title ? ' title="' + esc(i.title) + '"' : "") + ' aria-pressed="' + (i.id === current) + '">' + i.label + "</button>").join("");
   for (const b of el.querySelectorAll("button")) b.onclick = () => onPick(b.dataset.v);
 }
 
@@ -254,12 +258,23 @@ function curvePath(run) {
   }
   return d;
 }
+/* Cumulative movement: starts at 0 on the member's first value and grows by |change| at every later snapshot.
+   Up or down does not matter. A flat line means the member did nothing. */
+function cumMove(ser) {
+  let acc = 0, prev = null;
+  return ser.map((p) => {
+    if (!p.c) return null;
+    if (prev != null) acc += Math.abs(p.c.value - prev);
+    prev = p.c.value;
+    return acc;
+  });
+}
 const textW = (s) => [...s].reduce((w, ch) => w + (ch.charCodeAt(0) > 255 ? 11.5 : 6.4), 0);
 function renderChart() {
   hlId = null; hideTip();
   const lines = members.map((m, i) => {
     const ser = snapSeries(m), base = ser.find((p) => p.c);
-    const ys = ser.map((p) => {
+    const ys = state.mode === "move" ? cumMove(ser) : ser.map((p) => {
       if (!p.c) return null;
       if (state.mode === "value") return p.c.value;
       return base.c.value > 0 ? (p.c.value / base.c.value - 1) * 100 : null;
@@ -274,7 +289,7 @@ function renderChart() {
   const H = Math.max(280, T + B + labeled.length * GAP + 8);   // tall enough for every label
   let lo = Math.min(...all), hi = Math.max(...all);
   if (lo === hi) { lo -= 1; hi += 1; }
-  const padY = (hi - lo) * 0.06; lo -= padY; hi += padY;
+  const padY = (hi - lo) * 0.06; if (state.mode !== "move") lo -= padY; hi += padY;   // movement starts at 0 and cannot go below it
   const t0 = snap.times[0], t1 = snap.times[snap.times.length - 1];
   const x = (t) => t1 === t0 ? (L + W - R) / 2 : L + (t - t0) / (t1 - t0) * (W - L - R);
   const y = (v) => T + (1 - (v - lo) / (hi - lo)) * (H - T - B);
@@ -344,7 +359,7 @@ function render() {
   seg($("metrics"), TYPES, state.metric, (v) => { state.metric = v; render(); });
   seg($("modes"), MODES, state.mode, (v) => { state.mode = v; render(); });
   seg($("wins"), WINS, state.win, (v) => { state.win = v; render(); });
-  $("hChart").textContent = label(state.metric) + "成長曲線";   // the two titles follow the selected metric
+  $("hChart").textContent = label(state.metric) + (state.mode === "move" ? "累計位移" : "成長曲線");   // the two titles follow the selected metric
   $("hBars").textContent = label(state.metric) + "漲幅排行";
   renderRoster(); renderChart(); renderBars();
 }
