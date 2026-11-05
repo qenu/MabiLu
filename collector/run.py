@@ -1,11 +1,11 @@
-"""Collect one snapshot (one call per member): fetch -> append to the day file -> rebuild rollup -> git commit -> push.
+"""Collect one snapshot (one call per member): fetch -> append to the day file -> rebuild series.json -> git commit -> push.
 
     uv run collector/run.py                  # Chrome, then commit and push
     uv run collector/run.py --browser safari
     uv run collector/run.py --no-push        # commit only
     uv run collector/run.py --no-git         # write the files only
     uv run collector/run.py --dry-run        # fetch and print, write nothing
-    uv run collector/run.py --rebuild-only   # rebuild docs/daily.json from the raw log, no fetch
+    uv run collector/run.py --rebuild-only   # rebuild docs/series.json from the raw log, no fetch
     uv run collector/run.py --test-webhook   # send one test message
 
 A run that was stopped (HTTP 403/429 or a bad response) writes nothing.
@@ -15,7 +15,7 @@ import json
 import sys
 
 import snapshot
-from const import DAILY_FILE, ROOT, SERIES_FILE, SNAP_DIR
+from const import ROOT, SERIES_FILE, SNAP_DIR
 from gitpush import commit_and_push
 import notify
 from notify import send
@@ -27,7 +27,7 @@ def publish(message, args):
     if args.no_git:
         return "not committed"
     try:
-        out = commit_and_push(message, [SNAP_DIR, DAILY_FILE, SERIES_FILE], push=not args.no_push)
+        out = commit_and_push(message, [SNAP_DIR, SERIES_FILE], push=not args.no_push)
     except RuntimeError as e:
         now = snapshot.now()
         send(notify.failure(now, "git failed", str(e), next_run(now), written=True))
@@ -42,7 +42,7 @@ def main():
     p.add_argument("--no-push", action="store_true", help="commit but do not push")
     p.add_argument("--no-git", action="store_true", help="write files but do not commit")
     p.add_argument("--dry-run", action="store_true", help="fetch and print, write nothing")
-    p.add_argument("--rebuild-only", action="store_true", help="rebuild daily.json, no fetch")
+    p.add_argument("--rebuild-only", action="store_true", help="rebuild series.json, no fetch")
     p.add_argument("--test-webhook", action="store_true", help="send one test message to the webhook and exit")
     args = p.parse_args()
 
@@ -53,11 +53,9 @@ def main():
         sys.exit(0 if ok else "webhook is off (no URL) or the post failed")
 
     if args.rebuild_only:
-        data = snapshot.write_rollup()
-        snapshot.write_series()
-        print(f"rebuilt {DAILY_FILE.relative_to(ROOT)} and {SERIES_FILE.relative_to(ROOT)}: "
-              f"{len(data['days'])} days, {data['snapshot_count']} snapshots")
-        publish("rebuild daily rollup", args)
+        data = snapshot.write_series()
+        print(f"rebuilt {SERIES_FILE.relative_to(ROOT)}: {data['snapshot_count']} snapshots, {len(data['members'])} members")
+        publish("rebuild series", args)
         return
 
     from fetcher import fetch_all  # imports selenium only when we really fetch
@@ -88,9 +86,8 @@ def main():
         return
 
     path = snapshot.append_snapshot(snap)
-    data = snapshot.write_rollup()
-    snapshot.write_series()
-    print(f"appended to {path.relative_to(ROOT)} · rollup has {len(data['days'])} days")
+    data = snapshot.write_series()
+    print(f"appended to {path.relative_to(ROOT)} · series has {data['snapshot_count']} snapshots")
     published = publish(f"snapshot {snap['taken_at']}", args)
     send(notify.summary(taken_at, len(records), missing, result.requests, result.retries,
                         result.errors, published, next_run(snapshot.now())))

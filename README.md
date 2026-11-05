@@ -6,7 +6,6 @@ the **collector** gets the data, and the **site** only shows it.
     player.json          the guild members (in-game names)
     collector/           fetch, format, commit, push
     docs/                the static site (GitHub Pages) and its data
-    pending/             tests and demo tools, parked for now (git-ignored)
 
 ## 1. Collector (`collector/`)
 Needs `uv` and Chrome. It opens a visible Chrome window and calls the ranking API from inside the
@@ -16,7 +15,7 @@ tw.nexon.com page. A plain script gets HTTP 403 from Cloudflare, so a real brows
     uv run collector/run.py --no-push         # commit only
     uv run collector/run.py --no-git          # write the files only
     uv run collector/run.py --dry-run         # fetch and print, write nothing
-    uv run collector/run.py --rebuild-only    # rebuild docs/daily.json from the raw log
+    uv run collector/run.py --rebuild-only    # rebuild docs/series.json from the raw log
     uv run collector/run.py --browser safari  # needs: safaridriver --enable
 
 **Members:** edit `player.json`. It is a JSON list of in-game names, one per member.
@@ -59,7 +58,7 @@ The log is `logs/run.log` (git-ignored). On the Mac, turn off automatic sleep, s
 To change the times: edit `RUN_TIMES`, run `launchd.py` again, then `launchctl bootout` and `bootstrap`.
 
 ## 2. Site (`docs/`)
-Static page. It reads `docs/daily.json` and draws the tables and charts. No build step.
+Static page. It reads `docs/series.json` and draws the tables and charts. No build step.
 
     cd docs && python3 -m http.server       # then open http://localhost:8000
 
@@ -67,8 +66,7 @@ Publish: GitHub Settings > Pages > branch `main`, folder `/docs`.
 
 ## Data
     docs/snapshots/<YYYY-MM-DD>.json   raw log: a list, each run appends one snapshot (Asia/Taipei day)
-    docs/daily.json                    rollup the site reads (highest value per day); rebuilt on every run
-    docs/series.json                   every snapshot in columns, for the per-snapshot chart; rebuilt on every run
+    docs/series.json                   every snapshot in columns; the only file the site reads; rebuilt on every run
 
 A snapshot has one record per member that was found:
 `char_name`, `class`, `rank`, `combatpower`, `livingpower`, `attractiveness`.
@@ -76,21 +74,21 @@ A snapshot has one record per member that was found:
 - The total (綜合) is not stored. It is the sum of the 3 powers, the same as the game's total.
 - A member who was not found has no record.
 
-Rollup rule: for each day, member and metric, keep the HIGHEST value of that day.
-The table, the stats and the 1日/3日/14日/全期間 changes use this rule.
-The growth chart has a toggle: 每日最高 (daily max) or 每筆快照 (every snapshot). The second one loads
-`series.json` only when you click it. It shows the dips that the daily-max rule hides (a gear swap, for example).
-`series.json` has the 3 powers and the newest class per member. The site adds the powers to get the total.
-It grows by about 1 KB per snapshot (about 1.5 MB a year at 4 runs a day).
+The site shows every snapshot as it is. There is no daily-max rule, so a dip (a gear swap, for example) is shown as it happened.
+`series.json` has, for each member, the 3 powers, the total rank and the newest class, one value per snapshot.
+The site adds the 3 powers to get the total. The file grows by about 1.2 KB per snapshot (about 1.7 MB a year at 4 runs a day).
+
+**Change columns (1 日, 3 日, 14 日, 全期間):** the newest snapshot minus a start snapshot. For 1 日, 3 日 and 14 日 the
+start is the snapshot nearest to (newest time - window), if one is within 6 hours of that time. If there is none, the cell
+shows `–`. 全期間 starts at the member's first snapshot. A member who is not in the newest snapshot shows `–`.
+
+Hover details:
+- **A change cell in the table:** the number split into what went up and what went down, snapshot by snapshot.
+  For example, `+2` can be `+8,467 -8,465`: a big swing that ends flat, so the member is active.
+  Up + down is always exactly the number in the cell. It also shows how many snapshots changed and the time range.
+- **A name at the end of a chart line:** class, latest powers, rank, the changes of the selected metric,
+  and the last day's ups and downs. The line is highlighted and the others are dimmed.
 
 The chart lines are curved with a monotone curve (`curvePath` in `docs/app.js`). Between two points
 the line never goes above the higher point or below the lower one, so it shows no peak or dip that is not in the data.
 A line with only 2 points stays straight.
-
-## Pending (`pending/`)
-Parked for now, and not published.
-
-    python3 pending/test_collector.py   # offline tests
-    python3 pending/make_demo.py        # fake history; open http://localhost:8000/?demo
-
-The demo writes `docs/demo/daily.json` (git-ignored). Your real data is never touched.

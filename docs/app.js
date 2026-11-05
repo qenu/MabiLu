@@ -1,10 +1,9 @@
 "use strict";
-/* Reads daily.json (one request) and draws tables and charts.
-   The growth chart can also show every snapshot: that loads series.json, only when asked.
+/* Reads series.json (one request) and draws the tables and charts.
    It never writes data and never calls Nexon.
-   The collector builds daily.json: for each day, member and metric it keeps the
-   HIGHEST value of that day. "綜合" (total) and its rank come from the game's own
-   total ranking; the 3 powers have no separate rank. */
+   Every number comes from the snapshots as they are: no daily-max rule.
+   series.json has, per member, the 3 powers and the total rank for every snapshot.
+   "綜合" (total) is the sum of the 3 powers (the same as the game's total); only it has a rank. */
 
 const BASE = [
   {id: "combatpower", label: "戰鬥力"},
@@ -19,13 +18,12 @@ const WINS = [
   {id: "all", label: "全期間"},
 ];
 const MODES = [{id: "value", label: "數值"}, {id: "pct", label: "成長 %"}];
-const GRAINS = [{id: "day", label: "每日最高"}, {id: "snap", label: "每筆快照"}];
 const DAY = 86400000;
+const TOL = 6 * 3600e3;   // a window starts at the snapshot nearest to (newest - window), if one is within 6 hours of that time
 
-const state = {metric: TYPES[0].id, sort: {key: "value", dir: -1}, win: "1d", mode: "value", grain: "day", q: ""};
-let days = [], members = [], snapCount = 0, isDemo = false, updatedAt = "";
-let snap = null, snapError = "";   // series.json, loaded the first time the chart shows every snapshot
-const DEMO = new URLSearchParams(location.search).has("demo"); // ?demo loads demo/daily.json
+const state = {metric: TYPES[0].id, sort: {key: "value", dir: -1}, win: "1d", mode: "value", q: ""};
+let snap = {times: [], members: {}}, members = [], snapCount = 0, isDemo = false, updatedAt = "";
+const DEMO = new URLSearchParams(location.search).has("demo"); // ?demo loads demo/series.json
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
@@ -33,45 +31,34 @@ const fmt = (n) => n == null ? "–" : Number(n).toLocaleString("en-US", {maximu
 const fmtDelta = (n) => n == null ? "–" : (n > 0 ? "+" : "") + fmt(n);
 const dcls = (d) => d > 0 ? "up" : d < 0 ? "down" : "mut";
 const mdDay = (day) => parseInt(day.slice(5, 7), 10) + "/" + parseInt(day.slice(8, 10), 10);
-const mdT = (t) => mdDay(new Date(t).toISOString().slice(0, 10)); // t is a UTC midnight
 const label = (id) => TYPES.find((t) => t.id === id).label;
+const tpeDay = (t) => new Date(t + 8 * 3600e3).toISOString().slice(0, 10);   // t in ms -> the Taipei date
+const hhmm = (t) => mdDay(tpeDay(t)) + " " + new Date(t + 8 * 3600e3).toISOString().slice(11, 16);
 
 /* ---------- data ---------- */
 async function load() {
-  const url = DEMO ? "demo/daily.json" : "daily.json";
+  const url = DEMO ? "demo/series.json" : "series.json";
   const r = await fetch(url, {cache: "no-store"});
   if (!r.ok) throw new Error(url + " HTTP " + r.status);
   const j = await r.json();
   isDemo = !!j.demo;
   snapCount = j.snapshot_count || 0;
   updatedAt = j.updated_at || "";
-  days = Object.entries(j.days || {})
-    .map(([day, data]) => ({day, t: Date.parse(day + "T00:00:00Z"), data}))
-    .sort((a, b) => a.t - b.t);
-  const seen = new Set();
-  for (let i = days.length - 1; i >= 0; i--) for (const m of Object.keys(days[i].data)) seen.add(m);
-  members = [...seen];
-}
-const tpeDay = (t) => new Date(t + 8 * 3600e3).toISOString().slice(0, 10);   // t in ms -> the Taipei date
-async function loadSnaps() {
-  if (snap) return;
-  const url = DEMO ? "demo/series.json" : "series.json";
-  const r = await fetch(url, {cache: "no-store"});
-  if (!r.ok) throw new Error(url + " HTTP " + r.status);
-  const j = await r.json();
   snap = {times: (j.times || []).map((s) => s * 1000), members: j.members || {}};
+  members = Object.keys(snap.members);      // the order the members first appeared: it also keeps the line colors steady
 }
-const snapMode = () => state.grain === "snap" && !!snap;
-function snapSeries(m) {     // one point per snapshot; the total is the sum of the 3 powers
+/* One point per snapshot: {t, c: {value, rank, class}} or c = null when the member has no value there.
+   The total is the sum of the 3 powers. The rank (total only) is the total rank. */
+function snapSeries(m, type = state.metric) {
   const s = snap.members[m];
   if (!s) return [];
   return snap.times.map((t, i) => {
     let v;
-    if (state.metric === "total") {
+    if (type === "total") {
       const a = s.combatpower[i], b = s.livingpower[i], c = s.attractiveness[i];
       v = a == null || b == null || c == null ? null : a + b + c;
-    } else v = s[state.metric][i];
-    return {t, day: tpeDay(t), c: v == null ? null : {value: v, rank: null, class: s.class}};
+    } else v = s[type][i];
+    return {t, c: v == null ? null : {value: v, rank: type === "total" && s.rank ? s.rank[i] : null, class: s.class}};
   });
 }
 function snapTicks(t0, t1) {   // the first point, then each Taipei midnight (thinned to about 5)
@@ -80,23 +67,94 @@ function snapTicks(t0, t1) {   // the first point, then each Taipei midnight (th
   const kept = mids.filter((_, i) => i % (Math.ceil(mids.length / 5) || 1) === 0);
   return kept.length && (kept[0] - t0) / (t1 - t0) < 0.08 ? kept : [t0].concat(kept);   // drop the first label if a midnight is right next to it
 }
-const cell = (d, m, type) => (d.data[m] && d.data[m][type]) || null;
-const series = (m, type) => days.map((d) => ({t: d.t, day: d.day, c: cell(d, m, type)}));
-function memberClass(m) {
-  for (let i = days.length - 1; i >= 0; i--)
-    for (const t of TYPES) { const c = cell(days[i], m, t.id); if (c && c.class) return c.class; }
-  return "?";
+const memberClass = (m) => snap.members[m] ? snap.members[m].class : "?";
+
+/* The start of a change window. pts = the member's points that have a value, oldest first; the last one is "now".
+   The start is the point nearest to (now - window). If none is within TOL, there is no start (the cell shows "–").
+   "全期間" starts at the first point. */
+function refPoint(pts, win) {
+  if (pts.length < 2) return null;
+  if (win === "all") return pts[0];
+  const target = pts[pts.length - 1].t - WINS.find((w) => w.id === win).days * DAY;
+  let best = null;
+  for (let i = 0; i < pts.length - 1; i++) if (!best || Math.abs(pts[i].t - target) < Math.abs(best.t - target)) best = pts[i];
+  return best && Math.abs(best.t - target) <= TOL ? best : null;
 }
+/* The change of a member in a window, from the newest snapshot back to the start. A member who is not in the newest snapshot has none. */
 function delta(ser, win) {
-  const n = ser.length, cur = n ? ser[n - 1] : null;
+  const cur = ser[ser.length - 1];
   if (!cur || !cur.c) return null;
-  if (win === "all") {
-    const first = ser.find((p) => p.c);
-    return first && first !== cur ? cur.c.value - first.c.value : null;
+  const pts = ser.filter((p) => p.c), ref = refPoint(pts, win);
+  return ref ? cur.c.value - ref.c.value : null;
+}
+
+/* ---------- hover details ---------- */
+const tipEl = document.createElement("div");
+tipEl.id = "tip";
+document.body.appendChild(tipEl);
+function showTip(html, ev) {
+  tipEl.innerHTML = html;
+  tipEl.style.display = "block";
+  const w = tipEl.offsetWidth, h = tipEl.offsetHeight;
+  let x = ev.clientX + 14, y = ev.clientY + 14;
+  if (x + w > innerWidth - 8) x = ev.clientX - w - 14;
+  if (y + h > innerHeight - 8) y = ev.clientY - h - 14;
+  tipEl.style.left = Math.max(8, x) + "px";
+  tipEl.style.top = Math.max(8, y) + "px";
+}
+const hideTip = () => { tipEl.style.display = "none"; };
+/* The snapshot-by-snapshot moves of one member in a window: what went up, what went down.
+   It uses the same start as the table cell, so up + down is exactly the number in the cell. */
+function moves(m, win) {
+  const ser = snapSeries(m), cur = ser[ser.length - 1];
+  if (!cur || !cur.c) return null;
+  const pts = ser.filter((p) => p.c), ref = refPoint(pts, win);
+  if (!ref) return null;
+  const seg = pts.slice(pts.indexOf(ref));
+  let up = 0, down = 0, changes = 0;
+  for (let i = 1; i < seg.length; i++) {
+    const d = seg[i].c.value - seg[i - 1].c.value;
+    if (d > 0) up += d; else if (d < 0) down += d;
+    if (d) changes++;
   }
-  const limit = cur.t - WINS.find((w) => w.id === win).days * DAY;
-  for (let i = n - 2; i >= 0; i--) if (ser[i].t <= limit && ser[i].c) return cur.c.value - ser[i].c.value;
+  return {from: seg[0].t, to: cur.t, up, down, net: up + down, changes, count: seg.length};
+}
+function winTip(m, win) {          // the table's change cells
+  const w = WINS.find((x) => x.id === win), mv = moves(m, win);
+  const head = '<div class="th">' + esc(m) + " · " + label(state.metric) + " · " + w.label + "</div>";
+  if (!mv) return head + '<div class="tm">沒有足夠的資料</div>';
+  return head + (mv.changes
+    ? '<div class="tr">' + (mv.up ? '<span class="up">' + fmtDelta(mv.up) + "</span>" : "") +
+      (mv.down ? '<span class="down">' + fmtDelta(mv.down) + "</span>" : "") + "<span>淨 " + fmtDelta(mv.net) + "</span></div>"
+    : '<div class="tr mut">期間內沒有變動</div>') +
+    '<div class="tm">共 ' + mv.count + " 筆，" + mv.changes + " 次變動<br>" + hhmm(mv.from) + " → " + hhmm(mv.to) + "</div>";
+}
+function latestPower(m, id) {
+  const s = snap.members[m];
+  if (!s) return null;
+  for (let i = s[id].length - 1; i >= 0; i--) if (s[id][i] != null) return s[id][i];
   return null;
+}
+function memberTip(m) {            // the names at the end of the chart lines
+  const ser = snapSeries(m), tot = snapSeries(m, "total"), tc = tot[tot.length - 1].c;
+  const p = BASE.map((b) => latestPower(m, b.id)), total = p.some((v) => v == null) ? null : p[0] + p[1] + p[2];
+  const mv1 = moves(m, "1d");
+  let h = '<div class="th">' + esc(m) + " · " + esc(memberClass(m)) + "</div>" +
+    '<div class="tr"><span>綜合 ' + fmt(total) + "</span>" + (tc && tc.rank != null ? '<span class="mut">#' + fmt(tc.rank) + "</span>" : "") + "</div>" +
+    '<div class="tm">' + BASE.map((b, i) => b.label + " " + fmt(p[i])).join(" · ") + "</div>" +
+    '<div class="tm" style="margin-top:4px">' + label(state.metric) + "：" +
+    WINS.map((w) => w.label + ' <span class="' + dcls(delta(ser, w.id)) + '">' + fmtDelta(delta(ser, w.id)) + "</span>").join(" · ") + "</div>";
+  if (mv1 && mv1.changes) h += '<div class="tm">1 日變化 <span class="up">' + (mv1.up ? fmtDelta(mv1.up) : "") + '</span> <span class="down">' + (mv1.down ? fmtDelta(mv1.down) : "") + "</span></div>";
+  return h;
+}
+let hlId = null;
+function highlight(i) {            // dim every line except the one under the pointer
+  const svg = $("chart").querySelector("svg");
+  if (!svg || hlId === i) return;
+  svg.querySelectorAll(".on").forEach((e) => e.classList.remove("on"));
+  hlId = i;
+  svg.classList.toggle("hl", i != null);
+  if (i != null) svg.querySelectorAll('[data-i="' + i + '"]').forEach((e) => e.classList.add("on"));
 }
 
 /* ---------- controls ---------- */
@@ -113,20 +171,19 @@ function spark(ser) {
   const vs = pts.map((p) => p.c.value), lo = Math.min(...vs), hi = Math.max(...vs);
   const x = (t) => pad + (t1 === t0 ? 0 : (t - t0) / (t1 - t0)) * (w - 2 * pad);
   const y = (v) => hi === lo ? h / 2 : h - pad - ((v - lo) / (hi - lo)) * (h - 2 * pad);
-  const d = pts.map((p, i) => (i ? "L" : "M") + x(p.t).toFixed(1) + " " + y(p.c.value).toFixed(1)).join(" ");
+  const d = curvePath(pts.map((p) => [x(p.t), y(p.c.value)]));
   return '<svg class="spark" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + " " + h +
     '"><path d="' + d + '" fill="none" stroke="var(--acc)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 }
 function buildRows() {
   return members.map((m) => {
-    const ser = series(m, state.metric), last = ser[ser.length - 1].c;
+    const ser = snapSeries(m), last = ser[ser.length - 1].c;
     return {member: m, cls: memberClass(m), value: last ? last.value : null, rank: last ? last.rank : null,
       d1: delta(ser, "1d"), d3: delta(ser, "3d"), d14: delta(ser, "14d"), dall: delta(ser, "all"), ser};
   });
 }
 function renderStats(rows) {
   const v = rows.map((r) => r.value).filter((x) => x != null).sort((a, b) => a - b), n = v.length;
-  const latest = days[days.length - 1].day;
   const sum = v.reduce((a, b) => a + b, 0);
   const med = !n ? null : n % 2 ? v[(n - 1) / 2] : (v[n / 2 - 1] + v[n / 2]) / 2;
   const card = (k, val, sub) => '<div class="stat"><div class="k">' + k + '</div><div class="v">' + val + "</div>" +
@@ -154,11 +211,11 @@ function renderRoster() {
     .concat([["d1", "1 日"], ["d3", "3 日"], ["d14", "14 日"], ["dall", "全期間"], ["", "趨勢"]]);
   const head = cols.map(([key, text]) => '<th data-k="' + key + '">' + text +
     (key && key === k ? (state.sort.dir > 0 ? " ▲" : " ▼") : "") + "</th>").join("");
-  const d = (v) => '<td class="num ' + dcls(v) + '">' + fmtDelta(v) + "</td>";
+  const d = (v, win, m) => '<td class="num ' + dcls(v) + '"' + (v == null ? "" : ' data-w="' + win + '" data-m="' + esc(m) + '"') + ">" + fmtDelta(v) + "</td>";
   const q = state.q.trim().toLowerCase();
   const shown = q ? rows.filter((r) => r.member.toLowerCase().includes(q) || r.cls.toLowerCase().includes(q)) : rows;
   const body = !shown.length ? '<tr><td class="empty" colspan="' + cols.length + '">沒有符合「' + esc(state.q.trim()) + '」的成員</td></tr>' : shown.map((r) => "<tr><td>" + esc(r.member) + "</td><td>" + esc(r.cls) + '</td><td class="num">' + fmt(r.value) +
-    "</td>" + (showRank ? '<td class="num mut">' + (r.rank == null ? "–" : "#" + fmt(r.rank)) + "</td>" : "") + d(r.d1) + d(r.d3) + d(r.d14) + d(r.dall) +
+    "</td>" + (showRank ? '<td class="num mut">' + (r.rank == null ? "–" : "#" + fmt(r.rank)) + "</td>" : "") + d(r.d1, "1d", r.member) + d(r.d3, "3d", r.member) + d(r.d14, "14d", r.member) + d(r.dall, "all", r.member) +
     "<td>" + spark(r.ser) + "</td></tr>").join("");
   $("roster").innerHTML = "<thead><tr>" + head + "</tr></thead><tbody>" + body + "</tbody>";
   for (const th of $("roster").querySelectorAll("th")) {
@@ -199,8 +256,9 @@ function curvePath(run) {
 }
 const textW = (s) => [...s].reduce((w, ch) => w + (ch.charCodeAt(0) > 255 ? 11.5 : 6.4), 0);
 function renderChart() {
+  hlId = null; hideTip();
   const lines = members.map((m, i) => {
-    const ser = snapMode() ? snapSeries(m) : series(m, state.metric), base = ser.find((p) => p.c);
+    const ser = snapSeries(m), base = ser.find((p) => p.c);
     const ys = ser.map((p) => {
       if (!p.c) return null;
       if (state.mode === "value") return p.c.value;
@@ -208,7 +266,6 @@ function renderChart() {
     });
     return {m, i, ser, ys};
   });
-  if (state.grain === "snap" && !snap) { $("chart").innerHTML = '<div class="empty">' + (snapError ? "無法載入每筆快照：" + esc(snapError) : "載入中…") + "</div>"; return; }
   const labeled = lines.filter((l) => l.ys.some((v) => v != null));
   if (!labeled.length) { $("chart").innerHTML = '<div class="empty">無資料</div>'; return; }
   const all = labeled.flatMap((l) => l.ys.filter((v) => v != null));
@@ -218,7 +275,7 @@ function renderChart() {
   let lo = Math.min(...all), hi = Math.max(...all);
   if (lo === hi) { lo -= 1; hi += 1; }
   const padY = (hi - lo) * 0.06; lo -= padY; hi += padY;
-  const t0 = snapMode() ? snap.times[0] : days[0].t, t1 = snapMode() ? snap.times[snap.times.length - 1] : days[days.length - 1].t;
+  const t0 = snap.times[0], t1 = snap.times[snap.times.length - 1];
   const x = (t) => t1 === t0 ? (L + W - R) / 2 : L + (t - t0) / (t1 - t0) * (W - L - R);
   const y = (v) => T + (1 - (v - lo) / (hi - lo)) * (H - T - B);
   const yf = (v) => state.mode === "pct" ? v.toFixed(1) + "%" : fmt(v);
@@ -228,9 +285,8 @@ function renderChart() {
     svg += '<line class="grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + yy.toFixed(1) + '" y2="' + yy.toFixed(1) + '"/>' +
       '<text x="' + (L - 8) + '" y="' + (yy + 4).toFixed(1) + '" text-anchor="end">' + yf(v) + "</text>";
   }
-  const ticks = snapMode() ? snapTicks(t0, t1)
-    : days.length === 1 ? [t0] : days.length === 2 ? [t0, t1] : [t0, Math.round((t0 + t1) / 2 / DAY) * DAY, t1];
-  const tickText = (t) => snapMode() ? mdDay(tpeDay(t)) : mdT(t);
+  const ticks = snapTicks(t0, t1);
+  const tickText = (t) => mdDay(tpeDay(t));
   ticks.forEach((t, k) => {
     const anchor = ticks.length > 1 && k === 0 ? "start" : ticks.length > 1 && k === ticks.length - 1 ? "end" : "middle";
     svg += '<text x="' + x(t).toFixed(1) + '" y="' + (H - 6) + '" text-anchor="' + anchor + '">' + tickText(t) + "</text>";
@@ -244,11 +300,11 @@ function renderChart() {
       runs[runs.length - 1].push([x(p.t), y(l.ys[j])]);
     });
     const d = runs.filter((r) => r.length).map(curvePath).join(" ");
-    svg += '<path class="ln l' + c + '" d="' + d + '"><title>' + esc(l.m) + "</title></path>";
+    svg += '<path class="ln l' + c + '" data-i="' + l.i + '" d="' + d + '"><title>' + esc(l.m) + "</title></path>";
     l.ser.forEach((p, k) => {            // a lone point has no line, so draw it as a dot
       if (l.ys[k] == null || (k > 0 && l.ys[k - 1] != null) || (k < l.ys.length - 1 && l.ys[k + 1] != null)) return;
       svg += '<circle class="f' + c + '" cx="' + x(p.t).toFixed(1) + '" cy="' + y(l.ys[k]).toFixed(1) + '" r="3"><title>' +
-        esc(l.m + " · " + (snapMode() ? mdDay(p.day) + " " + new Date(p.t + 8 * 3600e3).toISOString().slice(11, 16) : mdDay(p.day)) + " · " + fmt(p.c.value)) + "</title></circle>";
+        esc(l.m + " · " + hhmm(p.t) + " · " + fmt(p.c.value)) + "</title></circle>";
     });
   }
   // End labels: sort by height, then push apart so no two labels overlap.
@@ -265,17 +321,18 @@ function renderChart() {
   for (const it of items) {
     const c = it.l.i % 10;
     if (Math.abs(it.ty - it.py) > 1.5 || it.px < W - R - 1)   // moved, or the line ended early (member left)
-      svg += '<line class="lead l' + c + '" x1="' + (it.px + 4).toFixed(1) + '" y1="' + it.py.toFixed(1) + '" x2="' + (xl - 3) + '" y2="' + it.ty.toFixed(1) + '"/>';
-    svg += '<text class="f' + c + '" x="' + xl + '" y="' + (it.ty + 4).toFixed(1) + '">' + esc(it.l.m) + "</text>";
+      svg += '<line class="lead l' + c + '" data-i="' + it.l.i + '" x1="' + (it.px + 4).toFixed(1) + '" y1="' + it.py.toFixed(1) + '" x2="' + (xl - 3) + '" y2="' + it.ty.toFixed(1) + '"/>';
+    svg += '<rect class="hit" data-i="' + it.l.i + '" data-m="' + esc(it.l.m) + '" x="' + (xl - 4) + '" y="' + (it.ty - GAP / 2).toFixed(1) +
+      '" width="' + (R - 4) + '" height="' + GAP + '"/><text class="f' + c + '" x="' + xl + '" y="' + (it.ty + 4).toFixed(1) + '">' + esc(it.l.m) + "</text>";
   }
   $("chart").innerHTML = svg + "</svg>";
 }
 
 /* ---------- gainers ---------- */
 function renderBars() {
-  const rows = members.map((m) => ({m, d: delta(series(m, state.metric), state.win)})).filter((r) => r.d != null)
+  const rows = members.map((m) => ({m, d: delta(snapSeries(m), state.win)})).filter((r) => r.d != null)
     .sort((a, b) => b.d - a.d).slice(0, 10);
-  if (!rows.length) { $("bars").innerHTML = '<div class="empty">資料天數不足，無法比較這個期間</div>'; return; }
+  if (!rows.length) { $("bars").innerHTML = '<div class="empty">資料不足，無法比較這個期間</div>'; return; }
   const max = Math.max(...rows.map((r) => Math.abs(r.d))) || 1;
   $("bars").innerHTML = rows.map((r) => '<div class="bar"><div>' + esc(r.m) + '</div><div class="track"><div class="fill' +
     (r.d < 0 ? " neg" : "") + '" style="left:0;width:' + Math.max(2, Math.abs(r.d) / max * 100).toFixed(1) + '%"></div></div><div class="v ' +
@@ -286,32 +343,35 @@ function renderBars() {
 function render() {
   seg($("metrics"), TYPES, state.metric, (v) => { state.metric = v; render(); });
   seg($("modes"), MODES, state.mode, (v) => { state.mode = v; render(); });
-  seg($("grain"), GRAINS, state.grain, async (v) => {
-    state.grain = v;
-    if (v === "snap" && !snap) {
-      snapError = ""; render();                       // shows "loading" while series.json comes
-      try { await loadSnaps(); } catch (e) { snapError = e.message; }
-    }
-    render();
-  });
   seg($("wins"), WINS, state.win, (v) => { state.win = v; render(); });
   $("hChart").textContent = label(state.metric) + "成長曲線";   // the two titles follow the selected metric
   $("hBars").textContent = label(state.metric) + "漲幅排行";
   renderRoster(); renderChart(); renderBars();
 }
 load().then(() => {
-  if (!days.length) { $("sub").textContent = "尚無快照"; $("roster").innerHTML = '<tbody><tr><td class="empty">尚無資料</td></tr></tbody>'; return; }
+  if (!snap.times.length) { $("sub").textContent = "尚無資料"; $("roster").innerHTML = '<tbody><tr><td class="empty">尚無資料</td></tr></tbody>'; return; }
   $("sub").classList.toggle("demo", isDemo);
   $("sub").textContent = isDemo ? "【示範模擬資料】" : "";   // empty (and hidden) for real data
   const u = updatedAt;   // e.g. 2026-11-02T14:58:00+08:00 : show it as written, in the collector's time zone
   $("footUpdated").textContent = "更新於 " + (u ? u.slice(0, 10) + " " + u.slice(11, 16) + (u.length > 19 ? "<UTC" + u.slice(19) + ">" : "")
-    : days[days.length - 1].day) + " · 共 " + days.length + " 天、" + snapCount + " 筆快照";
+    : "") + " · 共 " + new Set(snap.times.map(tpeDay)).size + " 天、" + snapCount + " 筆";
   render();
-}).catch((e) => { $("sub").textContent = "無法載入：" + e.message + (DEMO ? "。請先執行 python3 pending/make_demo.py" : ""); });
+}).catch((e) => { $("sub").textContent = "無法載入：" + e.message; });
 
 const qBox = $("q");
 let composing = false;
-const applySearch = () => { state.q = qBox.value; if (days.length) renderRoster(); };
+const applySearch = () => { state.q = qBox.value; if (snap.times.length) renderRoster(); };
 qBox.addEventListener("compositionstart", () => { composing = true; });
 qBox.addEventListener("compositionend", () => { composing = false; applySearch(); });
 qBox.addEventListener("input", () => { if (!composing) applySearch(); });
+
+$("roster").addEventListener("mousemove", (ev) => {
+  const td = ev.target.closest("td[data-w]");
+  if (td) showTip(winTip(td.dataset.m, td.dataset.w), ev); else hideTip();
+});
+$("roster").addEventListener("mouseleave", hideTip);
+$("chart").addEventListener("mousemove", (ev) => {
+  const hit = ev.target.closest(".hit");
+  if (hit) { highlight(hit.dataset.i); showTip(memberTip(hit.dataset.m), ev); } else { highlight(null); hideTip(); }
+});
+$("chart").addEventListener("mouseleave", () => { highlight(null); hideTip(); });

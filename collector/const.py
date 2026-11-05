@@ -3,8 +3,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SNAP_DIR = ROOT / "docs" / "snapshots"   # raw log: one file per day
-DAILY_FILE = ROOT / "docs" / "daily.json"  # rollup the site reads (highest value per day)
-SERIES_FILE = ROOT / "docs" / "series.json"  # every snapshot, compact; the chart loads it on request
+SERIES_FILE = ROOT / "docs" / "series.json"  # every snapshot, compact: the only file the site reads
 PROFILE_DIR = ROOT / ".chrome-profile"
 
 SITE_URL = "https://tw.nexon.com/mabinogimobile/"
@@ -46,7 +45,7 @@ TIMEZONE = "Asia/Taipei"
 # One call with ranking_type=total returns the total rank, the total value and all 3 powers.
 RANKING_TYPE = "total"
 POWERS = ("combatpower", "livingpower", "attractiveness")
-METRICS = (*POWERS, "total")      # "total" is not stored: it is the sum of the 3 powers
+# The total is not stored: it is the sum of the 3 powers.
 
 PLAYERS_FILE = ROOT / "player.json"     # the guild members: a JSON list of in-game char_name
 

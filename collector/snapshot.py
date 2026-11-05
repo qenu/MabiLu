@@ -1,7 +1,7 @@
-"""Format, append and roll up snapshots.
+"""Format and append snapshots, and build the file the site reads.
 
 Raw log:  docs/snapshots/<YYYY-MM-DD>.json   a list; every run appends one snapshot
-Rollup:   docs/daily.json                    what the site reads (rebuilt from the raw log)
+Series:   docs/series.json                   EVERY snapshot in columns; the only file the site reads
 
 A snapshot's `data` is a list with one record per member that was found:
     {"char_name", "class", "rank", "combatpower", "livingpower", "attractiveness"}
@@ -9,13 +9,9 @@ A snapshot's `data` is a list with one record per member that was found:
 powers). A member who was not found has no record. The total is not stored: it is
 the sum of the 3 powers, which equals the game's own total (each power rounded down).
 
-Series: docs/series.json has EVERY snapshot (no daily-max rule), in columns, for the per-snapshot chart.
-
-Rollup rule: for each day, member and metric we keep the HIGHEST value of that day.
-Each metric is taken on its own, so the day's total can come from another snapshot
-than the day's combat power. The rank belongs to the snapshot of the highest total.
-A snapshot where a power is missing has no total. The day is the first 10 characters
-of taken_at (Asia/Taipei, because taken_at always carries the +08:00 offset).
+The site shows every snapshot as it is. There is no daily-max rule.
+The day of a snapshot is the first 10 characters of taken_at (Asia/Taipei, because
+taken_at always carries the +08:00 offset).
 """
 import json
 import os
@@ -23,7 +19,7 @@ import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from const import DAILY_FILE, METRICS, POWERS, RANKING_TYPE, SERIES_FILE, SNAP_DIR, TIMEZONE, WORLD_ID
+from const import POWERS, RANKING_TYPE, SERIES_FILE, SNAP_DIR, TIMEZONE, WORLD_ID
 
 DAY_FILE = re.compile(r"^\d{4}-\d{2}-\d{2}\.json$")
 RECORD_KEYS = {"char_name", "class", "rank", *POWERS}
@@ -102,47 +98,6 @@ def latest_ranks(snap_dir=SNAP_DIR):
     return {}
 
 
-def total_of(rec):
-    """The total power of a record, or None when a power is missing."""
-    vals = [rec[k] for k in POWERS]
-    return None if any(v is None for v in vals) else sum(vals)
-
-
-def rollup_from(snaps):
-    """Build the rollup from any iterable of snapshots."""
-    days, count, latest = {}, 0, None
-    for snap in snaps:
-        count += 1
-        if latest is None or datetime.fromisoformat(snap["taken_at"]) > datetime.fromisoformat(latest):
-            latest = snap["taken_at"]
-        rows = days.setdefault(snap["taken_at"][:10], {})
-        for rec in snap["data"]:
-            row = rows.setdefault(rec["char_name"], {})
-            for t in METRICS:
-                v = total_of(rec) if t == "total" else rec[t]
-                if v is None or (t in row and v <= row[t]["value"]):
-                    continue
-                row[t] = {"value": v, "rank": rec["rank"] if t == "total" else None, "class": rec["class"]}
-    return {
-        "version": 3,
-        "rule": "highest value per day for each metric; total = sum of the 3 powers; rank is the total rank",
-        "snapshot_count": count,
-        "updated_at": latest,                      # taken_at of the newest snapshot, with its +08:00
-        "days": dict(sorted(days.items())),
-    }
-
-
-def build_rollup(snap_dir=SNAP_DIR):
-    files = sorted(p for p in snap_dir.glob("*.json") if DAY_FILE.match(p.name))
-    return rollup_from(s for p in files for s in read_day(p))
-
-
-def write_rollup(snap_dir=SNAP_DIR, out=DAILY_FILE, data=None):
-    data = data or build_rollup(snap_dir)
-    _write_atomic(out, json.dumps(data, ensure_ascii=False, separators=(",", ":")) + "\n")
-    return data
-
-
 def load_snapshots(snap_dir=SNAP_DIR):
     files = sorted(p for p in snap_dir.glob("*.json") if DAY_FILE.match(p.name))
     return [s for p in files for s in read_day(p)]
@@ -150,17 +105,18 @@ def load_snapshots(snap_dir=SNAP_DIR):
 
 def series_from(snaps):
     """Every snapshot in columns. times are Unix seconds. A member missing from a snapshot has null there.
-    The total is not stored (the site adds the 3 powers). `class` is the member's newest class."""
+    `rank` is the total rank. The total itself is not stored (the site adds the 3 powers).
+    `class` is the member's newest class."""
     snaps = sorted(snaps, key=lambda s: datetime.fromisoformat(s["taken_at"]))
     members = {}
     for i, snap in enumerate(snaps):
         for rec in snap["data"]:
-            m = members.setdefault(rec["char_name"], {"class": rec["class"], **{k: [None] * len(snaps) for k in POWERS}})
+            m = members.setdefault(rec["char_name"], {"class": rec["class"], **{k: [None] * len(snaps) for k in ("rank", *POWERS)}})
             m["class"] = rec["class"]
-            for k in POWERS:
+            for k in ("rank", *POWERS):
                 m[k][i] = rec[k]
     return {
-        "version": 1,
+        "version": 2,
         "snapshot_count": len(snaps),
         "updated_at": snaps[-1]["taken_at"] if snaps else None,
         "times": [int(datetime.fromisoformat(s["taken_at"]).timestamp()) for s in snaps],

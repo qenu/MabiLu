@@ -56,3 +56,14 @@ svg circle{stroke:var(--card);stroke-width:1.5}
 .empty{padding:20px;color:var(--mut)}
 footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);color:var(--mut);font-size:12px}
 footer p{margin:2px 0}
+#tip{position:fixed;display:none;z-index:20;max-width:300px;padding:8px 10px;background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:8px;font-size:12px;line-height:1.55;box-shadow:0 4px 18px rgba(0,0,0,.18);pointer-events:none}
+#tip .th{font-weight:600;margin-bottom:2px}
+#tip .tr{display:flex;gap:10px;font-size:15px;font-variant-numeric:tabular-nums}
+#tip .tm{color:var(--mut)}
+td[data-w]{cursor:help}
+td[data-w]:hover{background:var(--flat)}
+svg .hit{fill:transparent;cursor:help}
+svg.big.hl .ln{opacity:.12}
+svg.big.hl .ln.on{opacity:1;stroke-width:3}
+svg.big.hl .lead{opacity:.08}
+svg.big.hl .lead.on{opacity:.8}
