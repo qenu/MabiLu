@@ -31,7 +31,8 @@ const MODES = [
 const DAY = 86400000;
 const TOL = 6 * 3600e3;   // a window starts at the snapshot nearest to (newest - window), if one is within 6 hours of that time
 
-const state = {metric: TYPES[0].id, sort: {key: "value", dir: -1}, win: "1d", range: "3d", mode: "value", q: ""};
+const state = {metric: TYPES[0].id, sort: {key: "value", dir: -1}, win: "1d", range: "3d", mode: "value", q: "", showGone: false};
+let gone = new Set();   // members with no value in the newest snapshot (left the guild, renamed, or not found)
 let snap = {times: [], members: {}}, members = [], snapCount = 0, isDemo = false, updatedAt = "";
 const DEMO = new URLSearchParams(location.search).has("demo"); // ?demo loads demo/series.json
 
@@ -76,6 +77,10 @@ function snapTicks(t0, t1) {   // the first point, then each Taipei midnight (th
   for (let t = Date.parse(tpeDay(t0) + "T00:00:00+08:00") + DAY; t <= t1; t += DAY) mids.push(t);
   const kept = mids.filter((_, i) => i % (Math.ceil(mids.length / 5) || 1) === 0);
   return kept.length && (kept[0] - t0) / (t1 - t0) < 0.08 ? kept : [t0].concat(kept);   // drop the first label if a midnight is right next to it
+}
+const visible = (m) => state.showGone || !gone.has(m);
+function findGone() {
+  gone = new Set(members.filter((m) => { const s = snapSeries(m, "total"); return !s.length || !s[s.length - 1].c; }));
 }
 const memberClass = (m) => snap.members[m] ? snap.members[m].class : "?";
 
@@ -186,7 +191,7 @@ function spark(ser) {
     '"><path d="' + d + '" fill="none" stroke="var(--acc)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 }
 function buildRows() {
-  return members.map((m) => {
+  return members.filter(visible).map((m) => {
     const ser = snapSeries(m), last = ser[ser.length - 1].c;
     return {member: m, cls: memberClass(m), value: last ? last.value : null, rank: last ? last.rank : null,
       d1: delta(ser, "1d"), d3: delta(ser, "3d"), d14: delta(ser, "14d"), dall: delta(ser, "all"), ser};
@@ -199,7 +204,7 @@ function renderStats(rows) {
   const card = (k, val, sub) => '<div class="stat"><div class="k">' + k + '</div><div class="v">' + val + "</div>" +
     (sub ? '<div class="s">' + sub + "</div>" : "") + "</div>";
   $("stats").innerHTML =
-    card("成員數", fmt(n), n < members.length ? "追蹤 " + members.length + " 位，" + (members.length - n) + " 位無資料" : "") +
+    card("成員數", fmt(n), n < rows.length ? "追蹤 " + rows.length + " 位，" + (rows.length - n) + " 位無資料" : "") +
     card("綜合加總", fmt(n ? sum : null)) +
     card("總和平均", fmt(n ? sum / n : null)) +
     card("總和中位數", fmt(med));
@@ -288,7 +293,7 @@ function renderChart() {
       return base.c.value > 0 ? (p.c.value / base.c.value - 1) * 100 : null;
     });
     return {m, i, ser, ys};
-  });
+  }).filter((l) => visible(l.m));
   const labeled = lines.filter((l) => l.ys.some((v) => v != null));
   if (!labeled.length) { $("chart").innerHTML = '<div class="empty">無資料</div>'; return; }
   const all = labeled.flatMap((l) => l.ys.filter((v) => v != null));
@@ -365,6 +370,10 @@ function renderBars() {
 
 /* ---------- page ---------- */
 function render() {
+  findGone();
+  $("gone").hidden = !gone.size;                       // nothing to show or hide
+  $("gone").textContent = state.showGone ? "不顯示隱藏資料" : "顯示隱藏資料";
+  $("gone").onclick = () => { state.showGone = !state.showGone; render(); };
   seg($("metrics"), TYPES, state.metric, (v) => { state.metric = v; render(); });
   seg($("modes"), MODES, state.mode, (v) => { state.mode = v; render(); });
   seg($("ranges"), RANGES, state.range, (v) => { state.range = v; render(); });
