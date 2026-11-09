@@ -99,8 +99,4 @@ The chart lines are curved with a monotone curve (`curvePath` in `docs/app.js`).
 the line never goes above the higher point or below the lower one, so it shows no peak or dip that is not in the data.
 A line with only 2 points stays straight.
 
-**Members with no data (顯示隱藏資料):** A member has no data when the newest snapshot has no value for them
-(they left, they renamed, or the name was not found). Next to the 綜合總覽 title there is a small text button.
-The default text is "顯示隱藏資料": these members are out of the table, the chart and the member count.
-Click it to bring them back. The text then changes to "不顯示隱藏資料", and the member card says how many have no data. The switch only appears
-when at least one member has no data. Their old snapshots stay in the files.
+**Members with no data:** The site shows only members who have a value in the newest snapshot. A member who left, renamed or was not found is left out of the table, the chart and the stats. Their old snapshots stay in the files.

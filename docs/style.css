@@ -1,6 +1,6 @@
 :root{
   --bg:#fafaf7;--fg:#1d1d1b;--mut:#6b6b64;--line:#e4e2da;--card:#fff;--acc:#2f6f5e;
-  --up1:#cfe8d8;--up2:#9fd2b2;--up3:#5fb583;--up4:#2f8f5b;--flat:#e6e5de;--down:#f0c27a;--neg:#c0861f;
+  --up1:#cfe8d8;--up2:#9fd2b2;--up3:#5fb583;--up4:#2f8f5b;--flat:#e6e5de;--down:#f0c27a;--neg:#8a5a0e;
   --c0:#2f6f5e;--c1:#c2573b;--c2:#3b6fc2;--c3:#b8902e;--c4:#8a4fb0;--c5:#2e9aa8;--c6:#c24b8c;--c7:#6b7a2e;--c8:#7a6b5e;--c9:#d17a2a;
 }
 @media (prefers-color-scheme:dark){:root{
@@ -32,7 +32,8 @@ h2 input[type=search]:focus{outline:none;border-color:var(--acc)}
 table{border-collapse:collapse;width:100%;min-width:720px}
 th,td{padding:9px 12px;text-align:right;white-space:nowrap}
 th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){text-align:left}
-thead th{font-size:12px;color:var(--mut);font-weight:600;cursor:pointer;user-select:none;border-bottom:1px solid var(--line)}
+thead th{font-size:12px;color:var(--mut);font-weight:600;border-bottom:1px solid var(--line)}
+thead th .thbtn{font:inherit;color:inherit;background:none;border:0;padding:4px 2px;margin:-4px -2px;cursor:pointer;user-select:none}
 tbody tr+tr td{border-top:1px solid var(--line)}
 td.num{font-variant-numeric:tabular-nums}
 .sub.demo{color:var(--neg);font-weight:600}
@@ -61,20 +62,17 @@ footer p{margin:2px 0}
 #tip .tr{display:flex;gap:10px;font-size:15px;font-variant-numeric:tabular-nums}
 #tip .tm{color:var(--mut)}
 td[data-w]{cursor:help}
-td[data-w]:hover{background:var(--flat)}
+td[data-w]:hover,td[data-w]:focus-visible{background:var(--flat)}
 svg .hit{fill:transparent;cursor:help}
 svg text{pointer-events:none}   /* so the hover area under a name gets the pointer, not the letters */
 svg.big.hl .ln{opacity:.12}
 svg.big.hl .ln.on{opacity:1;stroke-width:3}
 svg.big.hl .lead{opacity:.08}
 svg.big.hl .lead.on{opacity:.8}
-#gone{font:inherit;font-size:12px;font-weight:400;color:var(--mut);background:none;border:0;padding:0 2px;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
-#gone:hover{color:var(--fg,inherit)}
-#gone[hidden]{display:none}
+#retry{font:inherit;font-size:13px;font-weight:600;color:var(--acc);background:none;border:0;padding:0;margin-left:4px;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
 
 /* browser surfaces: focus, selection, sticky name column */
 :focus-visible{outline:2px solid var(--acc);outline-offset:2px;border-radius:4px}
 ::selection{background:var(--acc);color:var(--bg)}
 th:first-child,td:first-child{position:sticky;left:0;background:var(--card);z-index:1}
-td[data-w]:hover{background:var(--flat)}
 svg text{font-variant-numeric:tabular-nums}

@@ -31,10 +31,33 @@ const MODES = [
 const DAY = 86400000;
 const TOL = 6 * 3600e3;   // a window starts at the snapshot nearest to (newest - window), if one is within 6 hours of that time
 
-const state = {metric: TYPES[0].id, sort: {key: "value", dir: -1}, win: "1d", range: "3d", mode: "value", q: "", showGone: false};
-let gone = new Set();   // members with no value in the newest snapshot (left the guild, renamed, or not found)
+const state = {metric: TYPES[0].id, sort: {key: "value", dir: -1}, win: "1d", range: "3d", mode: "value", q: ""};
 let snap = {times: [], members: {}}, members = [], snapCount = 0, isDemo = false, updatedAt = "";
 const DEMO = new URLSearchParams(location.search).has("demo"); // ?demo loads demo/series.json
+
+/* Restore metric/win/range/mode/q from the URL so a link or a reload reopens the same view.
+   Unknown or invalid values fall back to the defaults above instead of erroring. */
+(() => {
+  const p = new URLSearchParams(location.search);
+  const pick = (list, key) => { const v = p.get(key); return list.some((x) => x.id === v) ? v : null; };
+  state.metric = pick(TYPES, "metric") || state.metric;
+  state.win = pick(WINS, "win") || state.win;
+  state.range = pick(RANGES, "range") || state.range;
+  state.mode = pick(MODES, "mode") || state.mode;
+  if (p.has("q")) state.q = p.get("q");
+})();
+/* Write the view back to the URL (replace, not push: controls aren't a navigation history). */
+function syncUrl() {
+  const p = new URLSearchParams();
+  if (DEMO) p.set("demo", "1");
+  if (state.metric !== TYPES[0].id) p.set("metric", state.metric);
+  if (state.win !== "1d") p.set("win", state.win);
+  if (state.range !== "3d") p.set("range", state.range);
+  if (state.mode !== "value") p.set("mode", state.mode);
+  if (state.q) p.set("q", state.q);
+  const qs = p.toString();
+  history.replaceState(null, "", location.pathname + (qs ? "?" + qs : ""));
+}
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
@@ -56,7 +79,8 @@ async function load() {
   snapCount = j.snapshot_count || 0;
   updatedAt = j.updated_at || "";
   snap = {times: (j.times || []).map((s) => s * 1000), members: j.members || {}};
-  members = Object.keys(snap.members);      // the order the members first appeared: it also keeps the line colors steady
+  // Only members with a value in the newest snapshot are shown. A member who left, renamed or was not found has no data now, so we leave them out everywhere. Their old snapshots stay in the files.
+  members = Object.keys(snap.members).filter((m) => { const s = snapSeries(m, "total"); return s.length && s[s.length - 1].c; });
 }
 /* One point per snapshot: {t, c: {value, rank, class}} or c = null when the member has no value there.
    The total is the sum of the 3 powers. The rank (total only) is the total rank. */
@@ -77,10 +101,6 @@ function snapTicks(t0, t1) {   // the first point, then each Taipei midnight (th
   for (let t = Date.parse(tpeDay(t0) + "T00:00:00+08:00") + DAY; t <= t1; t += DAY) mids.push(t);
   const kept = mids.filter((_, i) => i % (Math.ceil(mids.length / 5) || 1) === 0);
   return kept.length && (kept[0] - t0) / (t1 - t0) < 0.08 ? kept : [t0].concat(kept);   // drop the first label if a midnight is right next to it
-}
-const visible = (m) => state.showGone || !gone.has(m);
-function findGone() {
-  gone = new Set(members.filter((m) => { const s = snapSeries(m, "total"); return !s.length || !s[s.length - 1].c; }));
 }
 const memberClass = (m) => snap.members[m] ? snap.members[m].class : "?";
 
@@ -118,6 +138,12 @@ function showTip(html, ev) {
   tipEl.style.top = Math.max(8, y) + "px";
 }
 const hideTip = () => { tipEl.style.display = "none"; };
+/* Keyboard/touch equivalent of showTip: same panel, positioned from the focused element's own
+   box instead of a mouse position (focus and tap have no clientX/Y to anchor on). */
+function showTipFor(html, el) {
+  const r = el.getBoundingClientRect();
+  showTip(html, {clientX: r.left, clientY: r.bottom + 6});
+}
 /* The snapshot-by-snapshot moves of one member in a window: what went up, what went down.
    It uses the same start as the table cell, so up + down is exactly the number in the cell. */
 function moves(m, win) {
@@ -191,7 +217,7 @@ function spark(ser) {
     '"><path d="' + d + '" fill="none" stroke="var(--acc)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 }
 function buildRows() {
-  return members.filter(visible).map((m) => {
+  return members.map((m) => {
     const ser = snapSeries(m), last = ser[ser.length - 1].c;
     return {member: m, cls: memberClass(m), value: last ? last.value : null, rank: last ? last.rank : null,
       d1: delta(ser, "1d"), d3: delta(ser, "3d"), d14: delta(ser, "14d"), dall: delta(ser, "all"), ser};
@@ -203,11 +229,12 @@ function renderStats(rows) {
   const med = !n ? null : n % 2 ? v[(n - 1) / 2] : (v[n / 2 - 1] + v[n / 2]) / 2;
   const card = (k, val, sub) => '<div class="stat"><div class="k">' + k + '</div><div class="v">' + val + "</div>" +
     (sub ? '<div class="s">' + sub + "</div>" : "") + "</div>";
+  const lb = label(state.metric);
   $("stats").innerHTML =
     card("成員數", fmt(n), n < rows.length ? "追蹤 " + rows.length + " 位，" + (rows.length - n) + " 位無資料" : "") +
-    card("綜合加總", fmt(n ? sum : null)) +
-    card("總和平均", fmt(n ? sum / n : null)) +
-    card("總和中位數", fmt(med));
+    card(lb + "加總", fmt(n ? sum : null)) +
+    card(lb + "平均", fmt(n ? sum / n : null)) +
+    card(lb + "中位數", fmt(med));
 }
 function renderRoster() {
   const rows = buildRows();
@@ -224,19 +251,22 @@ function renderRoster() {
   });
   const cols = [["member", "成員"], ["cls", "職業"], ["value", "最新"]].concat(showRank ? [["rank", "排名"]] : [])
     .concat([["d1", "1 日"], ["d3", "3 日"], ["d14", "14 日"], ["dall", "全期間"], ["", "趨勢"]]);
-  const head = cols.map(([key, text]) => '<th data-k="' + key + '">' + text +
-    (key && key === k ? (state.sort.dir > 0 ? " ▲" : " ▼") : "") + "</th>").join("");
-  const d = (v, win, m) => '<td class="num ' + dcls(v) + '"' + (v == null ? "" : ' data-w="' + win + '" data-m="' + esc(m) + '"') + ">" + fmtDelta(v) + "</td>";
+  const head = cols.map(([key, text]) => {
+    if (!key) return "<th>" + text + "</th>";
+    const active = key === k, dir = active ? (state.sort.dir > 0 ? "ascending" : "descending") : "none";
+    return '<th aria-sort="' + dir + '"><button type="button" class="thbtn" data-k="' + key + '">' + text +
+      (active ? (state.sort.dir > 0 ? " ▲" : " ▼") : "") + "</button></th>";
+  }).join("");
+  const d = (v, win, m) => '<td class="num ' + dcls(v) + '"' + (v == null ? "" : ' data-w="' + win + '" data-m="' + esc(m) + '" tabindex="0"') + ">" + fmtDelta(v) + "</td>";
   const q = state.q.trim().toLowerCase();
   const shown = q ? rows.filter((r) => r.member.toLowerCase().includes(q) || r.cls.toLowerCase().includes(q)) : rows;
   const body = !shown.length ? '<tr><td class="empty" colspan="' + cols.length + '">沒有符合「' + esc(state.q.trim()) + '」的成員</td></tr>' : shown.map((r) => "<tr><td>" + esc(r.member) + "</td><td>" + esc(r.cls) + '</td><td class="num">' + fmt(r.value) +
     "</td>" + (showRank ? '<td class="num mut">' + (r.rank == null ? "–" : "#" + fmt(r.rank)) + "</td>" : "") + d(r.d1, "1d", r.member) + d(r.d3, "3d", r.member) + d(r.d14, "14d", r.member) + d(r.dall, "all", r.member) +
     "<td>" + spark(r.ser) + "</td></tr>").join("");
   $("roster").innerHTML = "<thead><tr>" + head + "</tr></thead><tbody>" + body + "</tbody>";
-  for (const th of $("roster").querySelectorAll("th")) {
-    const key = th.dataset.k;
-    if (!key) continue;
-    th.onclick = () => {
+  for (const btn of $("roster").querySelectorAll(".thbtn")) {
+    const key = btn.dataset.k;
+    btn.onclick = () => {
       state.sort = {key, dir: state.sort.key === key ? -state.sort.dir : (key === "member" || key === "cls" ? 1 : -1)};
       renderRoster();
     };
@@ -293,12 +323,12 @@ function renderChart() {
       return base.c.value > 0 ? (p.c.value / base.c.value - 1) * 100 : null;
     });
     return {m, i, ser, ys};
-  }).filter((l) => visible(l.m));
+  });
   const labeled = lines.filter((l) => l.ys.some((v) => v != null));
   if (!labeled.length) { $("chart").innerHTML = '<div class="empty">無資料</div>'; return; }
   const all = labeled.flatMap((l) => l.ys.filter((v) => v != null));
   const W = 920, L = 62, T = 12, B = 26, GAP = 13;
-  const R = Math.min(150, Math.ceil(Math.max(...labeled.map((l) => textW(l.m))) + 22));
+  const R = Math.min(220, Math.ceil(Math.max(...labeled.map((l) => textW(l.m))) + 22));
   const H = Math.max(280, T + B + labeled.length * GAP + 8);   // tall enough for every label
   let lo = Math.min(...all), hi = Math.max(...all);
   if (lo === hi) { lo -= 1; hi += 1; }
@@ -351,7 +381,7 @@ function renderChart() {
     const c = it.l.i % 10;
     if (Math.abs(it.ty - it.py) > 1.5 || it.px < W - R - 1)   // moved, or the line ended early (member left)
       svg += '<line class="lead l' + c + '" data-i="' + it.l.i + '" x1="' + (it.px + 4).toFixed(1) + '" y1="' + it.py.toFixed(1) + '" x2="' + (xl - 3) + '" y2="' + it.ty.toFixed(1) + '"/>';
-    svg += '<rect class="hit" data-i="' + it.l.i + '" data-m="' + esc(it.l.m) + '" x="' + (xl - 4) + '" y="' + (it.ty - GAP / 2).toFixed(1) +
+    svg += '<rect class="hit" tabindex="0" role="button" aria-label="' + esc(it.l.m) + '" data-i="' + it.l.i + '" data-m="' + esc(it.l.m) + '" x="' + (xl - 4) + '" y="' + (it.ty - GAP / 2).toFixed(1) +
       '" width="' + (R - 4) + '" height="' + GAP + '"/><text class="f' + c + '" x="' + xl + '" y="' + (it.ty + 4).toFixed(1) + '">' + esc(it.l.m) + "</text>";
   }
   $("chart").innerHTML = svg + "</svg>";
@@ -370,10 +400,6 @@ function renderBars() {
 
 /* ---------- page ---------- */
 function render() {
-  findGone();
-  $("gone").hidden = !gone.size;                       // nothing to show or hide
-  $("gone").textContent = state.showGone ? "不顯示隱藏資料" : "顯示隱藏資料";
-  $("gone").onclick = () => { state.showGone = !state.showGone; render(); };
   seg($("metrics"), TYPES, state.metric, (v) => { state.metric = v; render(); });
   seg($("modes"), MODES, state.mode, (v) => { state.mode = v; render(); });
   seg($("ranges"), RANGES, state.range, (v) => { state.range = v; render(); });
@@ -381,6 +407,7 @@ function render() {
   $("hChart").textContent = label(state.metric) + (state.mode === "move" ? "累計位移" : "成長曲線");   // the two titles follow the selected metric
   $("hBars").textContent = label(state.metric) + "漲幅排行";
   renderRoster(); renderChart(); renderBars();
+  syncUrl();
 }
 load().then(() => {
   if (!snap.times.length) { $("sub").textContent = "尚無資料"; $("roster").innerHTML = '<tbody><tr><td class="empty">尚無資料</td></tr></tbody>'; return; }
@@ -390,11 +417,16 @@ load().then(() => {
   $("footUpdated").textContent = "更新於 " + (u ? u.slice(0, 10) + " " + u.slice(11, 16) + (u.length > 19 ? "<UTC" + u.slice(19) + ">" : "")
     : "") + " · 共 " + new Set(snap.times.map(tpeDay)).size + " 天、" + snapCount + " 筆";
   render();
-}).catch((e) => { $("sub").textContent = "無法載入：" + e.message; });
+}).catch((e) => {
+  console.error(e);
+  $("sub").innerHTML = '無法載入資料，請檢查網路連線 <button type="button" id="retry">重試</button>';
+  $("retry").onclick = () => location.reload();
+});
 
 const qBox = $("q");
+qBox.value = state.q;
 let composing = false;
-const applySearch = () => { state.q = qBox.value; if (snap.times.length) renderRoster(); };
+const applySearch = () => { state.q = qBox.value; if (snap.times.length) { renderRoster(); syncUrl(); } };
 qBox.addEventListener("compositionstart", () => { composing = true; });
 qBox.addEventListener("compositionend", () => { composing = false; applySearch(); });
 qBox.addEventListener("input", () => { if (!composing) applySearch(); });
@@ -404,8 +436,19 @@ $("roster").addEventListener("mousemove", (ev) => {
   if (td) showTip(winTip(td.dataset.m, td.dataset.w), ev); else hideTip();
 });
 $("roster").addEventListener("mouseleave", hideTip);
+$("roster").addEventListener("focusin", (ev) => {
+  const td = ev.target.closest("td[data-w]");
+  if (td) showTipFor(winTip(td.dataset.m, td.dataset.w), td);
+});
+$("roster").addEventListener("focusout", (ev) => { if (ev.target.closest("td[data-w]")) hideTip(); });
 $("chart").addEventListener("mousemove", (ev) => {
   const hit = ev.target.closest(".hit");
   if (hit) { highlight(hit.dataset.i); showTip(memberTip(hit.dataset.m), ev); } else { highlight(null); hideTip(); }
 });
 $("chart").addEventListener("mouseleave", () => { highlight(null); hideTip(); });
+$("chart").addEventListener("focusin", (ev) => {
+  const hit = ev.target.closest(".hit");
+  if (hit) { highlight(hit.dataset.i); showTipFor(memberTip(hit.dataset.m), hit); }
+});
+$("chart").addEventListener("focusout", (ev) => { if (ev.target.closest(".hit")) { highlight(null); hideTip(); } });
+document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") hideTip(); });
