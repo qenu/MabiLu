@@ -1,46 +1,58 @@
 :root{
-  --bg:#fafaf7;--fg:#1d1d1b;--mut:#6b6b64;--line:#e4e2da;--card:#fff;--acc:#2f6f5e;
-  --up1:#cfe8d8;--up2:#9fd2b2;--up3:#5fb583;--up4:#2f8f5b;--flat:#e6e5de;--down:#f0c27a;--neg:#8a5a0e;
-  --c0:#2f6f5e;--c1:#c2573b;--c2:#3b6fc2;--c3:#b8902e;--c4:#8a4fb0;--c5:#2e9aa8;--c6:#c24b8c;--c7:#6b7a2e;--c8:#7a6b5e;--c9:#d17a2a;
+  --bg:#fafaf7;--fg:#1d1d1b;--mut:#65655e;--line:#e4e2da;--card:#fff;--acc:#2f6f5e;
+  /* change semantics: --up is its own green, kept apart from the jade brand --acc (selection/focus only) */
+  --up:#1e7546;--neg:#8a5a0e;--flat:#ecebe4;
+  /* chart series: each also colors its 12px name label, so every one is ≥4.5:1 on the card */
+  --c0:#2f6f5e;--c1:#b54a30;--c2:#3b6fc2;--c3:#8a6a12;--c4:#8a4fb0;--c5:#1c7884;--c6:#ad3a7a;--c7:#6b7a2e;--c8:#7a6b5e;--c9:#a95a17;
+  /* spacing scale (4px base): within a group → between groups → between sections */
+  /* type roles (≈1.2 ratio): label → control → data → heading → title → figure */
+  --t-label:12px;--t-control:14px;--t-data:15px;--t-heading:18px;--t-title:22px;--t-figure:26px;
+  --s1:4px;--s2:8px;--s3:12px;--s4:16px;--s5:24px;--s6:32px;--s7:48px;--s8:64px;
 }
 @media (prefers-color-scheme:dark){:root{
   --bg:#161715;--fg:#ecebe5;--mut:#9a9a90;--line:#2c2d2a;--card:#1d1e1b;--acc:#6fc2a9;
-  --up1:#27402f;--up2:#2f6a48;--up3:#3f9363;--up4:#56b883;--flat:#2d2e29;--down:#8a6a2c;--neg:#e0a640;
+  --up:#56b883;--neg:#e0a640;--flat:#2d2e29;
   --c0:#6fc2a9;--c1:#e5836a;--c2:#7ba3e8;--c3:#e0bd5c;--c4:#c196e0;--c5:#5fc4d2;--c6:#e382b6;--c7:#a3b45c;--c8:#b5a596;--c9:#eda55c;
 }}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Noto Sans TC",sans-serif}
-main{max-width:980px;margin:0 auto;padding:24px 16px 64px}
-h1{font-size:22px;margin:0}
-h2{font-size:15px;margin:32px 0 10px;letter-spacing:.02em;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:var(--t-data)/1.5 system-ui,-apple-system,"PingFang TC","Microsoft JhengHei","Noto Sans TC",sans-serif}
+main{max-width:980px;margin:0 auto;padding:var(--s6) var(--s4) var(--s8)}
+h1{font-size:var(--t-title);font-weight:700;margin:0;line-height:1.3;letter-spacing:.01em;text-wrap:balance}
+h2{font-size:var(--t-heading);font-weight:600;margin:0;line-height:1.35;letter-spacing:.02em;text-wrap:balance}
+section{margin-top:var(--s7)}
+/* section head: title leads on the left, its controls sit on the right edge of the card below */
+.sechead{display:flex;align-items:center;justify-content:space-between;gap:var(--s2) var(--s4);flex-wrap:wrap;margin-bottom:var(--s3);min-height:32px}
+.tools{display:flex;gap:var(--s2) var(--s4);flex-wrap:wrap}
 .sub:empty{display:none}
-.sub{color:var(--mut);font-size:13px;margin-top:2px}
-.seg{display:inline-flex;gap:6px;flex-wrap:wrap;margin:20px 0 0}
-.seg.small{margin:0}
-.seg button{font:inherit;font-size:14px;padding:6px 14px;border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:8px;cursor:pointer}
-.seg.small button{font-size:12px;padding:3px 10px}
+.sub{color:var(--mut);font-size:var(--t-control);margin-top:var(--s1)}
+.seg{display:flex;gap:var(--s2);flex-wrap:wrap;margin-top:var(--s4)}
+.seg.small{display:inline-flex;gap:var(--s1);margin:0}
+.seg button{font:inherit;font-size:var(--t-control);padding:6px 14px;border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:8px;cursor:pointer}
+.seg.small button{font-size:var(--t-label);padding:3px 10px}
 .seg button[aria-pressed=true]{background:var(--acc);border-color:var(--acc);color:var(--bg)}
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:16px}
-.stat{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
-.stat .k{font-size:12px;color:var(--mut)}
-.stat .v{font-size:24px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.3}
-.stat .s{font-size:12px;color:var(--mut)}
-h2 input[type=search]{font:inherit;font-size:13px;font-weight:400;width:200px;padding:4px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--fg)}
-h2 input[type=search]:focus{outline:none;border-color:var(--acc)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--s3);margin-top:var(--s4)}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:var(--s3) var(--s4)}
+.stat .k{font-size:var(--t-label);color:var(--mut)}
+.stat .v{font-size:var(--t-figure);font-weight:600;font-variant-numeric:tabular-nums;line-height:1.25;letter-spacing:-.01em;margin-top:var(--s1)}
+.stat .s{font-size:var(--t-label);color:var(--mut)}
+.sechead input[type=search]{font:inherit;font-size:var(--t-control);width:min(240px,100%);padding:var(--s1) var(--s3);min-height:32px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--fg)}
+.sechead input[type=search]::placeholder{color:var(--mut);opacity:1}   /* the browser default #757575 was 3.6:1 on the dark card */
+.sechead input[type=search]:focus-visible{border-color:var(--acc)}   /* plus the global 2px focus outline */
 .card{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow-x:auto}
-.card.pad{padding:12px}
+.card.pad{padding:var(--s3)}
 table{border-collapse:collapse;width:100%;min-width:720px}
-th,td{padding:9px 12px;text-align:right;white-space:nowrap}
+th,td{padding:var(--s2) var(--s3);text-align:right;white-space:nowrap}
 th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){text-align:left}
-thead th{font-size:12px;color:var(--mut);font-weight:600;border-bottom:1px solid var(--line)}
+thead th{font-size:var(--t-label);color:var(--mut);font-weight:600;border-bottom:1px solid var(--line)}
 thead th .thbtn{font:inherit;color:inherit;background:none;border:0;padding:4px 2px;margin:-4px -2px;cursor:pointer;user-select:none}
 tbody tr+tr td{border-top:1px solid var(--line)}
 td.num{font-variant-numeric:tabular-nums}
 .sub.demo{color:var(--neg);font-weight:600}
-.up{color:var(--up4)}.down{color:var(--neg)}.mut{color:var(--mut)}
+.up{color:var(--up)}.down{color:var(--neg)}.mut{color:var(--mut)}
 svg.spark{display:block;margin-left:auto}
 svg.big{display:block;width:100%;height:auto;min-width:560px}
-svg text{fill:var(--mut);font-size:11px;font-family:inherit}
+svg text{fill:var(--mut);font-size:var(--t-label);font-family:inherit}
 svg .grid{stroke:var(--line);stroke-width:1}
 svg .ln{fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 svg .lead{fill:none;stroke-width:1;opacity:.45;stroke-dasharray:2 3}
@@ -49,17 +61,12 @@ svg circle{stroke:var(--card);stroke-width:1.5}
 .l5{stroke:var(--c5)}.l6{stroke:var(--c6)}.l7{stroke:var(--c7)}.l8{stroke:var(--c8)}.l9{stroke:var(--c9)}
 .f0{fill:var(--c0)}.f1{fill:var(--c1)}.f2{fill:var(--c2)}.f3{fill:var(--c3)}.f4{fill:var(--c4)}
 .f5{fill:var(--c5)}.f6{fill:var(--c6)}.f7{fill:var(--c7)}.f8{fill:var(--c8)}.f9{fill:var(--c9)}
-.bar{display:grid;grid-template-columns:140px 1fr 120px;gap:10px;align-items:center;padding:4px 0;font-size:14px}
-.bar .track{height:14px;background:var(--flat);border-radius:4px;position:relative;overflow:hidden}
-.bar .fill{position:absolute;top:0;bottom:0;border-radius:4px;background:var(--up4)}
-.bar .fill.neg{background:var(--down)}
-.bar .v{text-align:right;font-variant-numeric:tabular-nums}
-.empty{padding:20px;color:var(--mut)}
-footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);color:var(--mut);font-size:12px}
+.empty{padding:var(--s5);color:var(--mut)}
+footer{font-size:var(--t-label);margin-top:var(--s8);padding-top:var(--s4);border-top:1px solid var(--line);color:var(--mut)}
 footer p{margin:2px 0}
-#tip{position:fixed;display:none;z-index:20;max-width:300px;padding:8px 10px;background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:8px;font-size:12px;line-height:1.55;box-shadow:0 4px 18px rgba(0,0,0,.18);pointer-events:none}
+#tip{position:fixed;display:none;z-index:20;max-width:300px;padding:8px 10px;background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:8px;font-size:var(--t-label);line-height:1.55;box-shadow:0 4px 18px rgba(0,0,0,.18);pointer-events:none}
 #tip .th{font-weight:600;margin-bottom:2px}
-#tip .tr{display:flex;gap:10px;font-size:15px;font-variant-numeric:tabular-nums}
+#tip .tr{display:flex;gap:10px;font-size:var(--t-data);font-variant-numeric:tabular-nums}
 #tip .tm{color:var(--mut)}
 td[data-w]{cursor:help}
 td[data-w]:hover,td[data-w]:focus-visible{background:var(--flat)}
@@ -69,10 +76,44 @@ svg.big.hl .ln{opacity:.12}
 svg.big.hl .ln.on{opacity:1;stroke-width:3}
 svg.big.hl .lead{opacity:.08}
 svg.big.hl .lead.on{opacity:.8}
-#retry{font:inherit;font-size:13px;font-weight:600;color:var(--acc);background:none;border:0;padding:0;margin-left:4px;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
+#retry{font:inherit;font-size:inherit;font-weight:600;color:var(--acc);background:none;border:0;padding:0;margin-left:4px;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
 
 /* browser surfaces: focus, selection, sticky name column */
 :focus-visible{outline:2px solid var(--acc);outline-offset:2px;border-radius:4px}
 ::selection{background:var(--acc);color:var(--bg)}
 th:first-child,td:first-child{position:sticky;left:0;background:var(--card);z-index:1}
 svg text{font-variant-numeric:tabular-nums}
+.stat.txt .v{font-size:var(--t-heading);line-height:1.45;overflow-wrap:anywhere}
+.stat.txt .s{overflow-wrap:anywhere}
+/* class section: the three findings share one row; below them, a grid of people where one cell is one member
+   (10 per row), so each class's area is its head count. The top class is solid accent, the rest tinted by count. */
+#fun{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}   /* 3 across on wide, 1 per row on phone: never a 2 + 1 orphan */
+.peoplegrid{margin-top:var(--s3);padding:var(--s3);overflow:visible}
+.peoplegrid ol{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(10,1fr);grid-auto-flow:row dense;gap:3px}
+.peoplegrid li{grid-column:span var(--n);min-height:72px;min-width:0;padding:var(--s2) var(--s3);border-radius:6px;display:flex;flex-direction:column;justify-content:space-between;
+  background:color-mix(in oklch,var(--acc) var(--tint,9%),var(--card));outline:1px solid var(--line);outline-offset:-1px}
+.peoplegrid li.top{background:var(--acc);color:var(--bg);outline:0}
+.peoplegrid .cn{font-weight:600;font-size:var(--t-control);line-height:1.3;overflow-wrap:anywhere}
+.peoplegrid .meta{display:flex;justify-content:space-between;gap:var(--s2);font-size:var(--t-label);font-variant-numeric:tabular-nums}   /* full fg: gray fails 4.5:1 on the stronger tints */
+.peoplegrid .foot{margin:var(--s3) 0 0;font-size:var(--t-label)}
+@media (max-width:600px){.peoplegrid ol{grid-template-columns:repeat(4,1fr)}.peoplegrid li{grid-column:span var(--nn);min-height:64px}.peoplegrid .foot{display:none}}
+
+/* iOS Safari zooms the page on focus when an input is under 16px: give touch devices the full size */
+@media (pointer:coarse){.sechead input[type=search]{font-size:16px;min-height:40px}}
+
+/* visually hidden, still read by screen readers (table caption) */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+/* touch screens: toggle buttons get a comfortable tap height (chart name rows are enlarged in app.js) */
+@media (pointer:coarse){.seg button{min-height:40px}.seg.small button{min-height:36px;padding-inline:var(--s3)}}
+/* chart value axis: pinned to the left while the chart scrolls sideways on narrow screens */
+#chart{display:flex}
+.yaxis{position:sticky;left:0;z-index:1;flex:none;margin-right:calc(-1 * var(--axis-w, 64px));background:var(--card);font-size:var(--t-label);color:var(--mut);font-variant-numeric:tabular-nums;pointer-events:none}
+.yaxis::before{content:"";position:absolute;top:0;bottom:0;right:100%;width:var(--s3);background:inherit}   /* covers the box's left padding so scrolled lines don't peek out beside the labels */
+.yaxis span{position:absolute;right:8px;transform:translateY(-50%);line-height:1;white-space:nowrap}
+/* Windows High Contrast / forced colors replaces backgrounds, so the selected state needs system colors */
+@media (forced-colors:active){
+  .seg button[aria-pressed=true]{forced-color-adjust:none;background:Highlight;color:HighlightText;border-color:Highlight}
+  .peoplegrid li{outline-color:CanvasText}
+  .peoplegrid li.top{forced-color-adjust:none;background:Highlight;color:HighlightText}
+  .yaxis{background:Canvas;color:CanvasText}
+}

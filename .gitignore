@@ -11,9 +11,9 @@ wheels/
 
 # Local data
 .chrome-profile/
-/docs/demo/
 /pending/
 .DS_Store
 .venv/
 webhook.url
-/logs/
+.impeccable/
+.claude/

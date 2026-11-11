@@ -8,28 +8,38 @@
 </head>
 <body>
 <main>
-  <h1>花朝之約 · Mabinogi Lookup</h1>
-  <div class="sub" id="sub">載入中…</div>
+  <header class="top">
+    <h1>花朝之約 · Mabinogi Lookup</h1>
+    <div class="sub" id="sub">載入中…</div>
+    <div class="seg" id="metrics" role="group" aria-label="指標"></div>
+    <div class="stats" id="stats"></div>
+  </header>
 
-  <div class="seg" id="metrics" role="group" aria-label="指標"></div>
+  <section aria-labelledby="hRoster">
+    <div class="sechead">
+      <h2 id="hRoster">綜合總覽</h2>
+      <input id="q" type="search" placeholder="搜尋成員或職業" autocomplete="off" aria-label="搜尋成員">
+    </div>
+    <div class="card"><table id="roster"></table></div>
+  </section>
 
-  <div class="stats" id="stats"></div>
+  <section aria-labelledby="hChart">
+    <div class="sechead">
+      <h2 id="hChart">綜合成長曲線</h2>
+      <div class="tools">
+        <span class="seg small" id="modes" role="group" aria-label="曲線模式"></span>
+        <span class="seg small" id="ranges" role="group" aria-label="曲線範圍"></span>
+      </div>
+    </div>
+    <div class="card pad"><div id="chart"></div></div>
+  </section>
 
-  <h2>綜合總覽
-    <input id="q" type="search" placeholder="搜尋成員或職業" autocomplete="off" aria-label="搜尋成員">
-  </h2>
-  <div class="card"><table id="roster"></table></div>
+  <section aria-labelledby="hClass">
+    <div class="sechead"><h2 id="hClass">職業統計</h2></div>
+    <div class="stats" id="fun"></div>
+    <div class="card peoplegrid" id="classList" role="group" aria-label="各職業人數"></div>
+  </section>
 
-  <h2><span id="hChart">綜合成長曲線</span>
-    <span class="seg small" id="modes" role="group" aria-label="曲線模式"></span>
-    <span class="seg small" id="ranges" role="group" aria-label="曲線範圍"></span>
-  </h2>
-  <div class="card pad"><div id="chart"></div></div>
-
-  <h2><span id="hBars">綜合漲幅排行</span>
-    <span class="seg small" id="wins" role="group" aria-label="期間"></span>
-  </h2>
-  <div class="card pad"><div id="bars"></div></div>
   <footer>
     <p><strong>花朝之約 · Mabinogi Mobile Lookup</strong></p>
     <p id="footUpdated"></p>

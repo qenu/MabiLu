@@ -19,11 +19,13 @@ import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from const import POWERS, RANKING_TYPE, SERIES_FILE, SNAP_DIR, TIMEZONE, WORLD_ID
+from const import CLASS_HASH_TO_NAME, POWERS, RANKING_TYPE, SERIES_FILE, SNAP_DIR, TIMEZONE, WORLD_ID
 
 DAY_FILE = re.compile(r"^\d{4}-\d{2}-\d{2}\.json$")
 RECORD_KEYS = {"char_name", "class", "rank", *POWERS}
 VERSION = 3
+# Every class in the game, for the site's class stats. The 見習 (apprentice) classes are left out.
+ALL_CLASSES = [c for c in dict.fromkeys(CLASS_HASH_TO_NAME.values()) if "見習" not in c]
 
 
 def now():
@@ -120,6 +122,7 @@ def series_from(snaps):
         "snapshot_count": len(snaps),
         "updated_at": snaps[-1]["taken_at"] if snaps else None,
         "times": [int(datetime.fromisoformat(s["taken_at"]).timestamp()) for s in snaps],
+        "classes": ALL_CLASSES,
         "members": members,
     }
 

@@ -76,6 +76,7 @@ A snapshot has one record per member that was found:
 
 The site shows every snapshot as it is. There is no daily-max rule, so a dip (a gear swap, for example) is shown as it happened.
 `series.json` has, for each member, the 3 powers, the total rank and the newest class, one value per snapshot.
+`series.json` also has `classes`: every class in the game from `CLASS_HASH_TO_NAME`, without the 見習 classes. The site uses it for the class stats.
 The site adds the 3 powers to get the total. The file grows by about 1.2 KB per snapshot (about 1.7 MB a year at 4 runs a day).
 
 **Change columns (1 日, 3 日, 14 日, 全期間):** the newest snapshot minus a start snapshot. For 1 日, 3 日 and 14 日 the

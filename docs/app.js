@@ -31,8 +31,8 @@ const MODES = [
 const DAY = 86400000;
 const TOL = 6 * 3600e3;   // a window starts at the snapshot nearest to (newest - window), if one is within 6 hours of that time
 
-const state = {metric: TYPES[0].id, sort: {key: "value", dir: -1}, win: "1d", range: "3d", mode: "value", q: ""};
-let snap = {times: [], members: {}}, members = [], snapCount = 0, isDemo = false, updatedAt = "";
+const state = {metric: TYPES[0].id, sort: {key: "value", dir: -1}, range: "3d", mode: "value", q: ""};
+let snap = {times: [], members: {}}, members = [], allClasses = [], snapCount = 0, isDemo = false, updatedAt = "";
 const DEMO = new URLSearchParams(location.search).has("demo"); // ?demo loads demo/series.json
 
 /* Restore metric/win/range/mode/q from the URL so a link or a reload reopens the same view.
@@ -41,7 +41,6 @@ const DEMO = new URLSearchParams(location.search).has("demo"); // ?demo loads de
   const p = new URLSearchParams(location.search);
   const pick = (list, key) => { const v = p.get(key); return list.some((x) => x.id === v) ? v : null; };
   state.metric = pick(TYPES, "metric") || state.metric;
-  state.win = pick(WINS, "win") || state.win;
   state.range = pick(RANGES, "range") || state.range;
   state.mode = pick(MODES, "mode") || state.mode;
   if (p.has("q")) state.q = p.get("q");
@@ -51,7 +50,6 @@ function syncUrl() {
   const p = new URLSearchParams();
   if (DEMO) p.set("demo", "1");
   if (state.metric !== TYPES[0].id) p.set("metric", state.metric);
-  if (state.win !== "1d") p.set("win", state.win);
   if (state.range !== "3d") p.set("range", state.range);
   if (state.mode !== "value") p.set("mode", state.mode);
   if (state.q) p.set("q", state.q);
@@ -72,14 +70,18 @@ const hhmm = (t) => mdDay(tpeDay(t)) + " " + new Date(t + 8 * 3600e3).toISOStrin
 /* ---------- data ---------- */
 async function load() {
   const url = DEMO ? "demo/series.json" : "series.json";
-  const r = await fetch(url, {cache: "no-store"});
-  if (!r.ok) throw new Error(url + " HTTP " + r.status);
+  // Give up after 15 s so a stalled connection ends in the retry message instead of "載入中…" forever.
+  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 15000);
+  let r;
+  try { r = await fetch(url, {cache: "no-store", signal: ctl.signal}); } finally { clearTimeout(timer); }
+  if (!r.ok) { const e = new Error(url + " HTTP " + r.status); e.status = r.status; throw e; }
   const j = await r.json();
   isDemo = !!j.demo;
   snapCount = j.snapshot_count || 0;
   updatedAt = j.updated_at || "";
   snap = {times: (j.times || []).map((s) => s * 1000), members: j.members || {}};
   // Only members with a value in the newest snapshot are shown. A member who left, renamed or was not found has no data now, so we leave them out everywhere. Their old snapshots stay in the files.
+  allClasses = j.classes || [];             // every class in the game (no 見習), written by the collector
   members = Object.keys(snap.members).filter((m) => { const s = snapSeries(m, "total"); return s.length && s[s.length - 1].c; });
 }
 /* One point per snapshot: {t, c: {value, rank, class}} or c = null when the member has no value there.
@@ -126,6 +128,7 @@ function delta(ser, win) {
 /* ---------- hover details ---------- */
 const tipEl = document.createElement("div");
 tipEl.id = "tip";
+tipEl.setAttribute("role", "tooltip");   // focusable targets point at it with aria-describedby, so screen readers read the details too
 document.body.appendChild(tipEl);
 function showTip(html, ev) {
   tipEl.innerHTML = html;
@@ -198,6 +201,49 @@ function highlight(i) {            // dim every line except the one under the po
   if (i != null) svg.querySelectorAll('[data-i="' + i + '"]').forEach((e) => e.classList.add("on"));
 }
 
+/* ---------- keyboard: one tab stop per region ---------- */
+/* The roster's change cells and the chart's names are each ONE tab stop; the arrow keys move inside.
+   (84 cells + 29 names used to sit between the table and the chart controls.) In the table, left/right
+   move along a row and up/down along a column; in the chart, up/down (or left/right) step through names. */
+function rove(root, sel) {
+  const items = [...root.querySelectorAll(sel)];
+  items.forEach((el, i) => el.setAttribute("tabindex", i ? "-1" : "0"));
+}
+function moveFocus(from, to) {
+  if (!to) return;
+  from.setAttribute("tabindex", "-1");
+  to.setAttribute("tabindex", "0");
+  to.focus();
+}
+document.addEventListener("keydown", (ev) => {
+  if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(ev.key)) return;
+  const cell = ev.target.closest && ev.target.closest("#roster td[data-w]");
+  const hit = ev.target.closest && ev.target.closest("#chart .hit");
+  if (cell) {
+    const row = cell.parentElement, col = cell.cellIndex;
+    let to = null;
+    if (ev.key === "ArrowLeft" || ev.key === "ArrowRight") {
+      const cells = [...row.querySelectorAll("td[data-w]")], i = cells.indexOf(cell);
+      to = cells[i + (ev.key === "ArrowRight" ? 1 : -1)];
+    } else if (ev.key === "Home" || ev.key === "End") {
+      const cells = [...row.querySelectorAll("td[data-w]")];
+      to = ev.key === "Home" ? cells[0] : cells[cells.length - 1];
+    } else {
+      for (let r = ev.key === "ArrowDown" ? row.nextElementSibling : row.previousElementSibling; r && !to;
+        r = ev.key === "ArrowDown" ? r.nextElementSibling : r.previousElementSibling) {
+        const c = r.cells[col];
+        if (c && c.hasAttribute("data-w")) to = c;
+      }
+    }
+    if (to) { ev.preventDefault(); moveFocus(cell, to); }
+  } else if (hit) {
+    const hits = [...$("chart").querySelectorAll(".hit")], i = hits.indexOf(hit);
+    const to = ev.key === "Home" ? hits[0] : ev.key === "End" ? hits[hits.length - 1]
+      : hits[i + (ev.key === "ArrowDown" || ev.key === "ArrowRight" ? 1 : -1)];
+    if (to) { ev.preventDefault(); moveFocus(hit, to); }
+  }
+});
+
 /* ---------- controls ---------- */
 function seg(el, items, current, onPick) {
   el.innerHTML = items.map((i) => '<button data-v="' + i.id + '"' + (i.title ? ' title="' + esc(i.title) + '"' : "") + ' aria-pressed="' + (i.id === current) + '">' + i.label + "</button>").join("");
@@ -213,7 +259,7 @@ function spark(ser) {
   const x = (t) => pad + (t1 === t0 ? 0 : (t - t0) / (t1 - t0)) * (w - 2 * pad);
   const y = (v) => hi === lo ? h / 2 : h - pad - ((v - lo) / (hi - lo)) * (h - 2 * pad);
   const d = curvePath(pts.map((p) => [x(p.t), y(p.c.value)]));
-  return '<svg class="spark" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + " " + h +
+  return '<svg class="spark" aria-hidden="true" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + " " + h +
     '"><path d="' + d + '" fill="none" stroke="var(--acc)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 }
 function buildRows() {
@@ -249,7 +295,7 @@ function renderRoster() {
     if (bv == null) return -1;
     return (typeof av === "string" ? av.localeCompare(bv) : av - bv) * state.sort.dir;
   });
-  const cols = [["member", "成員"], ["cls", "職業"], ["value", "最新"]].concat(showRank ? [["rank", "排名"]] : [])
+  const cols = [["member", "成員"], ["cls", "職業"], ["value", label(state.metric)]].concat(showRank ? [["rank", "排名"]] : [])
     .concat([["d1", "1 日"], ["d3", "3 日"], ["d14", "14 日"], ["dall", "全期間"], ["", "趨勢"]]);
   const head = cols.map(([key, text]) => {
     if (!key) return "<th>" + text + "</th>";
@@ -257,13 +303,14 @@ function renderRoster() {
     return '<th aria-sort="' + dir + '"><button type="button" class="thbtn" data-k="' + key + '">' + text +
       (active ? (state.sort.dir > 0 ? " ▲" : " ▼") : "") + "</button></th>";
   }).join("");
-  const d = (v, win, m) => '<td class="num ' + dcls(v) + '"' + (v == null ? "" : ' data-w="' + win + '" data-m="' + esc(m) + '" tabindex="0"') + ">" + fmtDelta(v) + "</td>";
+  const d = (v, win, m) => '<td class="num ' + dcls(v) + '"' + (v == null ? "" : ' data-w="' + win + '" data-m="' + esc(m) + '" tabindex="-1" aria-describedby="tip"') + ">" + fmtDelta(v) + "</td>";
   const q = state.q.trim().toLowerCase();
   const shown = q ? rows.filter((r) => r.member.toLowerCase().includes(q) || r.cls.toLowerCase().includes(q)) : rows;
   const body = !shown.length ? '<tr><td class="empty" colspan="' + cols.length + '">沒有符合「' + esc(state.q.trim()) + '」的成員</td></tr>' : shown.map((r) => "<tr><td>" + esc(r.member) + "</td><td>" + esc(r.cls) + '</td><td class="num">' + fmt(r.value) +
     "</td>" + (showRank ? '<td class="num mut">' + (r.rank == null ? "–" : "#" + fmt(r.rank)) + "</td>" : "") + d(r.d1, "1d", r.member) + d(r.d3, "3d", r.member) + d(r.d14, "14d", r.member) + d(r.dall, "all", r.member) +
     "<td>" + spark(r.ser) + "</td></tr>").join("");
-  $("roster").innerHTML = "<thead><tr>" + head + "</tr></thead><tbody>" + body + "</tbody>";
+  $("roster").innerHTML = '<caption class="sr-only">成員總覽：變化欄可用方向鍵移動，聚焦時會說明期間內的漲跌</caption><thead><tr>' + head + "</tr></thead><tbody>" + body + "</tbody>";
+  rove($("roster"), "td[data-w]");
   for (const btn of $("roster").querySelectorAll(".thbtn")) {
     const key = btn.dataset.k;
     btn.onclick = () => {
@@ -310,7 +357,14 @@ function cumMove(ser) {
     return acc;
   });
 }
-const textW = (s) => [...s].reduce((w, ch) => w + (ch.charCodeAt(0) > 255 ? 11.5 : 6.4), 0);
+/* Shorten a name to fit max px at the label size, ending in "…". */
+function fitName(name, max) {
+  if (textW(name) <= max) return name;
+  const chars = [...name];
+  while (chars.length > 1 && textW(chars.join("") + "…") > max) chars.pop();
+  return chars.join("") + "…";
+}
+const textW = (s) => [...s].reduce((w, ch) => w + (ch.charCodeAt(0) > 255 ? 12.5 : 7), 0);   // estimated label width at the 12px label size
 function renderChart() {
   hlId = null; hideTip();
   const days = RANGES.find((r) => r.id === state.range).days;
@@ -327,8 +381,12 @@ function renderChart() {
   const labeled = lines.filter((l) => l.ys.some((v) => v != null));
   if (!labeled.length) { $("chart").innerHTML = '<div class="empty">無資料</div>'; return; }
   const all = labeled.flatMap((l) => l.ys.filter((v) => v != null));
-  const W = 920, L = 62, T = 12, B = 26, GAP = 13;
-  const R = Math.min(220, Math.ceil(Math.max(...labeled.map((l) => textW(l.m))) + 22));
+  // Draw at the container's real width so 1 SVG unit = 1 CSS px and chart text stays at the 12px label size
+  // (a fixed 920-unit drawing scaled down to a phone shrank it to ~7px). Below 560px the card scrolls instead.
+  // Label rows are the tap targets for member details: 24px on touch screens (WCAG 2.5.8), 15px with a mouse.
+  const W = Math.max(560, $("chart").clientWidth || 920), L = 64, T = 12, B = 28, GAP = matchMedia("(pointer: coarse)").matches ? 24 : 15;
+  const NAMEW = 198;   // longest label drawn; longer names are shortened with "…" (the full name stays in the button's label)
+  const R = Math.min(220, Math.ceil(Math.max(...labeled.map((l) => Math.min(NAMEW, textW(l.m)))) + 22));
   const H = Math.max(280, T + B + labeled.length * GAP + 8);   // tall enough for every label
   let lo = Math.min(...all), hi = Math.max(...all);
   if (lo === hi) { lo -= 1; hi += 1; }
@@ -337,17 +395,21 @@ function renderChart() {
   const x = (t) => t1 === t0 ? (L + W - R) / 2 : L + (t - t0) / (t1 - t0) * (W - L - R);
   const y = (v) => T + (1 - (v - lo) / (hi - lo)) * (H - T - B);
   const yf = (v) => state.mode === "pct" ? v.toFixed(1) + "%" : fmt(v);
-  let svg = '<svg class="big" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="成長曲線">';
+  let svg = '<svg class="big" viewBox="0 0 ' + W + " " + H + '" role="group" aria-labelledby="hChart">';
+  // The value labels live in an HTML column pinned to the left edge (see .yaxis), so they stay in view when a
+  // phone scrolls the chart sideways. The SVG is drawn 1 unit = 1 px, so their positions match the gridlines.
+  let axis = '<div class="yaxis" aria-hidden="true" style="width:' + L + "px;height:" + H + 'px">';
   for (let k = 0; k <= 4; k++) {
     const v = lo + (hi - lo) * k / 4, yy = y(v);
-    svg += '<line class="grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + yy.toFixed(1) + '" y2="' + yy.toFixed(1) + '"/>' +
-      '<text x="' + (L - 8) + '" y="' + (yy + 4).toFixed(1) + '" text-anchor="end">' + yf(v) + "</text>";
+    svg += '<line class="grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + yy.toFixed(1) + '" y2="' + yy.toFixed(1) + '"/>';
+    axis += '<span style="top:' + yy.toFixed(1) + 'px">' + yf(v) + "</span>";
   }
+  axis += "</div>";
   const ticks = snapTicks(t0, t1);
   const tickText = (t) => mdDay(tpeDay(t));
   ticks.forEach((t, k) => {
     const anchor = ticks.length > 1 && k === 0 ? "start" : ticks.length > 1 && k === ticks.length - 1 ? "end" : "middle";
-    svg += '<text x="' + x(t).toFixed(1) + '" y="' + (H - 6) + '" text-anchor="' + anchor + '">' + tickText(t) + "</text>";
+    svg += '<text x="' + x(t).toFixed(1) + '" y="' + (H - 6) + '" text-anchor="' + anchor + '" aria-hidden="true">' + tickText(t) + "</text>";
   });
   for (const l of lines) {
     if (!l.ys.some((v) => v != null)) continue;   // no value in this range: nothing to draw
@@ -381,21 +443,49 @@ function renderChart() {
     const c = it.l.i % 10;
     if (Math.abs(it.ty - it.py) > 1.5 || it.px < W - R - 1)   // moved, or the line ended early (member left)
       svg += '<line class="lead l' + c + '" data-i="' + it.l.i + '" x1="' + (it.px + 4).toFixed(1) + '" y1="' + it.py.toFixed(1) + '" x2="' + (xl - 3) + '" y2="' + it.ty.toFixed(1) + '"/>';
-    svg += '<rect class="hit" tabindex="0" role="button" aria-label="' + esc(it.l.m) + '" data-i="' + it.l.i + '" data-m="' + esc(it.l.m) + '" x="' + (xl - 4) + '" y="' + (it.ty - GAP / 2).toFixed(1) +
-      '" width="' + (R - 4) + '" height="' + GAP + '"/><text class="f' + c + '" x="' + xl + '" y="' + (it.ty + 4).toFixed(1) + '">' + esc(it.l.m) + "</text>";
+    svg += '<rect class="hit" tabindex="-1" role="button" aria-describedby="tip" aria-label="' + esc(it.l.m) + '" data-i="' + it.l.i + '" data-m="' + esc(it.l.m) + '" x="' + (xl - 4) + '" y="' + (it.ty - GAP / 2).toFixed(1) +
+      '" width="' + (R - 4) + '" height="' + GAP + '"/><text class="f' + c + '" x="' + xl + '" y="' + (it.ty + 4).toFixed(1) + '" aria-hidden="true">' + esc(fitName(it.l.m, NAMEW)) + "</text>";
   }
-  $("chart").innerHTML = svg + "</svg>";
+  $("chart").innerHTML = axis + svg + "</svg>";
+  rove($("chart"), ".hit");
+  // On a phone the chart is wider than its box; open it at the newest end, where the member names are.
+  const box = $("chart").parentElement;
+  if (box.scrollWidth > box.clientWidth) box.scrollLeft = box.scrollWidth;
 }
 
-/* ---------- gainers ---------- */
-function renderBars() {
-  const rows = members.map((m) => ({m, d: delta(snapSeries(m), state.win)})).filter((r) => r.d != null)
-    .sort((a, b) => b.d - a.d).slice(0, 10);
-  if (!rows.length) { $("bars").innerHTML = '<div class="empty">資料不足，無法比較這個期間</div>'; return; }
-  const max = Math.max(...rows.map((r) => Math.abs(r.d))) || 1;
-  $("bars").innerHTML = rows.map((r) => '<div class="bar"><div>' + esc(r.m) + '</div><div class="track"><div class="fill' +
-    (r.d < 0 ? " neg" : "") + '" style="left:0;width:' + Math.max(2, Math.abs(r.d) / max * 100).toFixed(1) + '%"></div></div><div class="v ' +
-    dcls(r.d) + '">' + fmtDelta(r.d) + "</div></div>").join("");
+/* ---------- class stats ---------- */
+function renderFun() {
+  const n = members.length;
+  if (!n) { $("fun").innerHTML = '<div class="empty">尚無資料</div>'; $("classList").innerHTML = ""; return; }
+  const byClass = {};
+  for (const m of members) (byClass[memberClass(m)] = byClass[memberClass(m)] || []).push(m);
+  const all = allClasses.length ? allClasses : Object.keys(byClass);
+  const counts = Object.keys(byClass).map((c) => [c, byClass[c].length])
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "zh-Hant"));
+  const absent = all.filter((c) => !byClass[c]);
+  const used = all.filter((c) => byClass[c]).length;
+  const card = (k, v, s) => '<div class="stat txt"><div class="k">' + k + '</div><div class="v">' + esc(v) + "</div>" +
+    (s ? '<div class="s">' + esc(s) + "</div>" : "") + "</div>";
+  const avg = Object.keys(byClass).map((c) => {
+    const v = byClass[c].map((m) => { const s = snapSeries(m, "total"); return s[s.length - 1].c.value; });
+    return [c, v.reduce((a, b) => a + b, 0) / v.length, v.length];
+  });
+  const pool = avg.filter((x) => x[2] >= 2);   // a class with 1 player says nothing about the class
+  const best = (pool.length ? pool : avg).sort((a, b) => b[1] - a[1])[0];
+  $("fun").innerHTML =
+    card("職業多樣性", used + " / " + all.length, "公會擁有 " + Math.round(used / all.length * 100) + "% 的職業") +
+    card("沒人玩的職業", absent.length + " 種", absent.length ? absent.join("、") : "每種職業都有人") +
+    card("平均綜合最高的職業", best[0], "平均 " + fmt(best[1]) + "（" + best[2] + " 人，2 人以上才算）");
+  /* The head count per class as a grid of people: 10 cells per row, one cell per member, so each class's
+     area is exactly its head count (on phones the row is 4 cells and big classes clamp to the row).
+     The most played class is solid accent; the others are tinted by head count. */
+  const top = counts[0][1];
+  const cells = counts.map(([c, k]) => {
+    const tint = k === top ? "" : ";--tint:" + (9 + 40 * (top > 1 ? (k - 1) / (top - 1) : 0)).toFixed(1) + "%";
+    return '<li class="' + (k === top ? "top" : "") + '" style="--n:' + Math.min(k, 10) + ";--nn:" + Math.min(k, 4) + tint + '"><span class="cn">' + esc(c) +
+      '</span><span class="meta"><span class="num">' + k + ' 人</span><span class="num">' + Math.round(k / n * 100) + "%</span></span></li>";
+  }).join("");
+  $("classList").innerHTML = "<ol>" + cells + '</ol><p class="foot mut">每一格是一位成員 · 共 ' + n + " 人</p>";
 }
 
 /* ---------- page ---------- */
@@ -403,10 +493,8 @@ function render() {
   seg($("metrics"), TYPES, state.metric, (v) => { state.metric = v; render(); });
   seg($("modes"), MODES, state.mode, (v) => { state.mode = v; render(); });
   seg($("ranges"), RANGES, state.range, (v) => { state.range = v; render(); });
-  seg($("wins"), WINS, state.win, (v) => { state.win = v; render(); });
   $("hChart").textContent = label(state.metric) + (state.mode === "move" ? "累計位移" : "成長曲線");   // the two titles follow the selected metric
-  $("hBars").textContent = label(state.metric) + "漲幅排行";
-  renderRoster(); renderChart(); renderBars();
+  renderRoster(); renderChart(); renderFun();
   syncUrl();
 }
 load().then(() => {
@@ -419,8 +507,22 @@ load().then(() => {
   render();
 }).catch((e) => {
   console.error(e);
-  $("sub").innerHTML = '無法載入資料，請檢查網路連線 <button type="button" id="retry">重試</button>';
+  // Say which side failed: the server answered with an error, the request timed out, or there was no connection.
+  const why = e.status ? "資料暫時無法取得（HTTP " + e.status + "）" : e.name === "AbortError" ? "載入逾時，連線可能太慢" : "無法載入資料，請檢查網路連線";
+  $("sub").innerHTML = why + ' <button type="button" id="retry">重試</button>';
   $("retry").onclick = () => location.reload();
+});
+
+let lastW = 0;   // the chart is drawn at its container width, so redraw it when that width changes
+let resizeQueued = false;   // a window drag fires many resize events: redraw at most once per frame
+addEventListener("resize", () => {
+  if (resizeQueued) return;
+  resizeQueued = true;
+  requestAnimationFrame(() => {
+    resizeQueued = false;
+    const w = $("chart").clientWidth;
+    if (snap.times.length && w !== lastW) { lastW = w; renderChart(); }
+  });
 });
 
 const qBox = $("q");
