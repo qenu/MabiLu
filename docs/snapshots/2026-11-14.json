@@ -494,5 +494,253 @@
     "attractiveness": 27182
    }
   ]
+ },
+ {
+  "version": 3,
+  "taken_at": "2026-11-14T14:00:05+08:00",
+  "world_id": "2",
+  "ranking_type": "total",
+  "data": [
+   {
+    "char_name": "絢爛",
+    "class": "魔法師",
+    "rank": 2,
+    "combatpower": 39268,
+    "livingpower": 26419,
+    "attractiveness": 49880
+   },
+   {
+    "char_name": "緣代表",
+    "class": "電擊術士",
+    "rank": 11,
+    "combatpower": 37948,
+    "livingpower": 24210,
+    "attractiveness": 49615
+   },
+   {
+    "char_name": "豚豚君",
+    "class": "祭司",
+    "rank": 43,
+    "combatpower": 37887,
+    "livingpower": 20669,
+    "attractiveness": 49818
+   },
+   {
+    "char_name": "帕菈蒂",
+    "class": "雙刀客",
+    "rank": 67,
+    "combatpower": 37071,
+    "livingpower": 22262,
+    "attractiveness": 47579
+   },
+   {
+    "char_name": "淡淡的人",
+    "class": "魔法師",
+    "rank": 62,
+    "combatpower": 39006,
+    "livingpower": 18760,
+    "attractiveness": 49345
+   },
+   {
+    "char_name": "Nao",
+    "class": "弓手",
+    "rank": 457,
+    "combatpower": 26920,
+    "livingpower": 22567,
+    "attractiveness": 45892
+   },
+   {
+    "char_name": "鶴唳風聲",
+    "class": "雙刀客",
+    "rank": 18,
+    "combatpower": 37688,
+    "livingpower": 22971,
+    "attractiveness": 49910
+   },
+   {
+    "char_name": "K爸",
+    "class": "火焰術士",
+    "rank": 159,
+    "combatpower": 37278,
+    "livingpower": 19681,
+    "attractiveness": 45140
+   },
+   {
+    "char_name": "安妮亞l佛傑",
+    "class": "魔法師",
+    "rank": 171,
+    "combatpower": 36376,
+    "livingpower": 21484,
+    "attractiveness": 43731
+   },
+   {
+    "char_name": "錦月",
+    "class": "魔法師",
+    "rank": 212,
+    "combatpower": 36183,
+    "livingpower": 19460,
+    "attractiveness": 44566
+   },
+   {
+    "char_name": "聚寶財神",
+    "class": "雙刀客",
+    "rank": 327,
+    "combatpower": 36167,
+    "livingpower": 17619,
+    "attractiveness": 43771
+   },
+   {
+    "char_name": "限量發行",
+    "class": "祭司",
+    "rank": 316,
+    "combatpower": 34435,
+    "livingpower": 18902,
+    "attractiveness": 44454
+   },
+   {
+    "char_name": "肯泰羅",
+    "class": "大劍戰士",
+    "rank": 340,
+    "combatpower": 36762,
+    "livingpower": 16912,
+    "attractiveness": 43696
+   },
+   {
+    "char_name": "茉漓",
+    "class": "樂師",
+    "rank": 343,
+    "combatpower": 35593,
+    "livingpower": 21535,
+    "attractiveness": 40226
+   },
+   {
+    "char_name": "落痕踏雪",
+    "class": "治癒師",
+    "rank": 138,
+    "combatpower": 37125,
+    "livingpower": 21190,
+    "attractiveness": 44556
+   },
+   {
+    "char_name": "紐東容易紐西蘭",
+    "class": "吟遊詩人",
+    "rank": 730,
+    "combatpower": 30506,
+    "livingpower": 21703,
+    "attractiveness": 38872
+   },
+   {
+    "char_name": "伊普拉斯",
+    "class": "大劍戰士",
+    "rank": 526,
+    "combatpower": 34476,
+    "livingpower": 17829,
+    "attractiveness": 41923
+   },
+   {
+    "char_name": "白殤",
+    "class": "盜賊",
+    "rank": 1087,
+    "combatpower": 27847,
+    "livingpower": 16516,
+    "attractiveness": 41817
+   },
+   {
+    "char_name": "菲八啾比茉莉安",
+    "class": "治癒師",
+    "rank": 659,
+    "combatpower": 34875,
+    "livingpower": 22635,
+    "attractiveness": 34430
+   },
+   {
+    "char_name": "千鳥",
+    "class": "祭司",
+    "rank": 347,
+    "combatpower": 35607,
+    "livingpower": 19904,
+    "attractiveness": 41745
+   },
+   {
+    "char_name": "Owl",
+    "class": "弓手",
+    "rank": 720,
+    "combatpower": 34647,
+    "livingpower": 18472,
+    "attractiveness": 38062
+   },
+   {
+    "char_name": "羅莎莉亞阿斯蒙蒂斯",
+    "class": "祭司",
+    "rank": 732,
+    "combatpower": 35168,
+    "livingpower": 16701,
+    "attractiveness": 39194
+   },
+   {
+    "char_name": "奈比洛斯",
+    "class": "祭司",
+    "rank": 809,
+    "combatpower": 35130,
+    "livingpower": 12652,
+    "attractiveness": 41904
+   },
+   {
+    "char_name": "秋霜寒",
+    "class": "火焰術士",
+    "rank": 906,
+    "combatpower": 34960,
+    "livingpower": 20857,
+    "attractiveness": 32707
+   },
+   {
+    "char_name": "Aozaki",
+    "class": "大劍戰士",
+    "rank": 1072,
+    "combatpower": 34819,
+    "livingpower": 20859,
+    "attractiveness": 30717
+   },
+   {
+    "char_name": "飯糰t",
+    "class": "祭司",
+    "rank": 1623,
+    "combatpower": 34109,
+    "livingpower": 17266,
+    "attractiveness": 30666
+   },
+   {
+    "char_name": "悠悠菟",
+    "class": "治癒師",
+    "rank": 2042,
+    "combatpower": 33897,
+    "livingpower": 15468,
+    "attractiveness": 29927
+   },
+   {
+    "char_name": "心海第一可愛",
+    "class": "祭司",
+    "rank": 2113,
+    "combatpower": 32597,
+    "livingpower": 18816,
+    "attractiveness": 27453
+   },
+   {
+    "char_name": "喵嗚r",
+    "class": "弓手",
+    "rank": 3556,
+    "combatpower": 32479,
+    "livingpower": 16019,
+    "attractiveness": 24353
+   },
+   {
+    "char_name": "吟遊狐",
+    "class": "弓手",
+    "rank": 5072,
+    "combatpower": 26049,
+    "livingpower": 14849,
+    "attractiveness": 27184
+   }
+  ]
  }
 ]
