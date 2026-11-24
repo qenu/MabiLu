@@ -18,6 +18,8 @@ import snapshot
 from const import (
     API_URL,
     CLASS_HASH_TO_NAME,
+    CHROME_BINARY,
+    CHROMEDRIVER_PATH,
     DELAY_SEC,
     RETRIES,
     RETRY_WAIT_SEC,
@@ -198,6 +200,11 @@ def make_driver(browser="chrome"):
     opts = webdriver.ChromeOptions()
     opts.add_argument(f"--user-data-dir={PROFILE_DIR}")
     opts.add_argument("--window-size=1100,800")
+    if CHROME_BINARY and CHROMEDRIVER_PATH:
+        # Our own paths: Selenium Manager is not used, so there is no network call before the run.
+        from selenium.webdriver.chrome.service import Service
+        opts.binary_location = CHROME_BINARY
+        return webdriver.Chrome(options=opts, service=Service(executable_path=CHROMEDRIVER_PATH))
     return webdriver.Chrome(options=opts)  # visible window, not headless
 
 

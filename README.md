@@ -18,6 +18,17 @@ tw.nexon.com page. A plain script gets HTTP 403 from Cloudflare, so a real brows
     uv run collector/run.py --rebuild-only    # rebuild docs/series.json from the raw log
     uv run collector/run.py --browser safari  # needs: safaridriver --enable
 
+**Browser without the network (optional):** by default Selenium Manager finds Chrome and ChromeDriver, and it
+downloads new ones from Google when Chrome for Testing has a new version. If Google is not reachable, it hangs
+and the run never starts. To avoid that, give the collector a Chrome and a ChromeDriver that are already on the
+machine. Put a file `browser.json` in the project root (it is git-ignored):
+
+    {"chrome": "/path/to/Chrome", "chromedriver": "/path/to/chromedriver"}
+
+Or set `MABILOOKUP_CHROME` and `MABILOOKUP_CHROMEDRIVER`. Both are needed. Selenium Manager is then not used.
+The cost: you update these paths yourself when you want a newer Chrome. The copies that Selenium Manager downloaded
+are in `~/.cache/selenium/`.
+
 **Members:** edit `player.json`. It is a JSON list of in-game names, one per member.
 A name that is spelled wrong shows up as "not found" in the run summary.
 

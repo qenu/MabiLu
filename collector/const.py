@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 
@@ -31,6 +32,28 @@ def _read_webhook():
             url = ""
     return url
 
+
+def _read_browser():
+    """Optional: use a Chrome and ChromeDriver that are already on this machine.
+    Then Selenium Manager makes no network call, so a run does not hang when Google's
+    download servers are not reachable. Two ways to set them (the paths belong to this
+    machine, so they are not written here):
+      - the environment variables MABILOOKUP_CHROME and MABILOOKUP_CHROMEDRIVER
+      - a file named browser.json in the project root (git-ignored):
+        {"chrome": "/path/to/chrome", "chromedriver": "/path/to/chromedriver"}
+    Both must be set. Empty means: let Selenium find or download them."""
+    chrome = os.environ.get("MABILOOKUP_CHROME", "").strip()
+    driver = os.environ.get("MABILOOKUP_CHROMEDRIVER", "").strip()
+    if not (chrome and driver):
+        try:
+            cfg = json.loads((ROOT / "browser.json").read_text(encoding="utf-8"))
+            chrome, driver = str(cfg.get("chrome", "")).strip(), str(cfg.get("chromedriver", "")).strip()
+        except (OSError, ValueError, AttributeError):
+            chrome = driver = ""
+    return (chrome, driver) if chrome and driver else ("", "")
+
+
+CHROME_BINARY, CHROMEDRIVER_PATH = _read_browser()
 
 WEBHOOK_URL = _read_webhook()     # a Discord incoming webhook. Every run posts a summary or an alert.
 ALERT_MENTION = "@everyone"       # pinged on a failed run. "@here" pings only members who are online. "" = no ping.
